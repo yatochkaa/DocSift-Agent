@@ -217,3 +217,11 @@ class TestTiffSignatures:
             storage.save(file_name="bad.tiff", payload=b"NOTATIFF" + b"\x00" * 20)
 
         assert len(list(root.rglob("*.tif*"))) == 0
+
+    def test_truncated_tiff_signature_rejected(self, storage: DocumentStorage, root: Path) -> None:
+        # Только "MM"/"II" без остатка сигнатуры не должно приниматься
+        for payload in (b"MM" + b"\xff" * 20, b"II" + b"\xff" * 20):
+            with pytest.raises(UnsupportedContentTypeError, match="не соответствует ни одному"):
+                storage.save(file_name="bad.tiff", payload=payload)
+
+        assert len(list(root.rglob("*.tif*"))) == 0
