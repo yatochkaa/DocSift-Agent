@@ -4,11 +4,14 @@ from io import BytesIO
 from pathlib import Path
 
 import fitz
+import pytest
 from openpyxl import Workbook
 from PIL import Image, ImageDraw
 
 from docsift.schemas.text_extraction import BoundingBox, ExtractedTable, TextBlock
 from docsift.services.text_extraction import TextExtractionService
+from docsift.services.text_extraction.extractors import PdfTextExtractor
+from docsift.services.text_extraction.preprocessing import ImagePreprocessor
 
 
 class StubOcrEngine:
@@ -117,3 +120,129 @@ def test_xlsx_is_read_directly_without_ocr(tmp_path: Path) -> None:
     assert result.pages[0].label == "Счёт"
     assert result.pages[0].blocks
     assert result.pages[0].tables[0].rows[1] == ["Услуга", "1", "2500"]
+
+
+# ── PDF render-limit tests ──────────────────────────────────────────────
+
+
+class StubOcrEngineEmpty:
+    """OCR stub returning no blocks — enough to satisfy the protocol."""
+
+    def extract(self, image: Image.Image) -> tuple[list[TextBlock], list[ExtractedTable]]:
+        return [], []
+
+
+class RecordingPreprocessor:
+    """Preprocessor stub that records the image size and passes it through."""
+
+    def __init__(self) -> None:
+        self.last_size: tuple[int, int] | None = None
+
+    def prepare(self, image: Image.Image) -> Image.Image:
+        self.last_size = image.size
+        return image.convert("RGB")
+
+
+def test_oversized_page_scale_is_reduced(tmp_path: Path) -> None:
+    """A 2000×2000 pt page at 300 DPI would be 8333×8333 px (~69 MP).
+    With a 9 MP limit the scale must be reduced (new_scale ≈ 1.5),
+    producing ~3000×3000 px — within budget, no exception."""
+    max_mp = 9
+    render_dpi = 300
+    page_size = 2000
+
+    path = tmp_path / "oversized.pdf"
+    doc = fitz.open()
+    doc.new_page(width=page_size, height=page_size)
+    doc.save(path)
+    doc.close()
+
+    preprocessor = RecordingPreprocessor()
+    extractor = PdfTextExtractor(
+        ocr_engine=StubOcrEngineEmpty(),
+        preprocessor=preprocessor,  # type: ignore[arg-type]
+        render_dpi=render_dpi,
+        max_render_megapixels=max_mp,
+    )
+
+    pages = extractor.extract(path)
+
+    assert len(pages) == 1
+    assert preprocessor.last_size is not None
+    w, h = preprocessor.last_size
+    megapixels = w * h / 1_000_000
+    # Allow 1% tolerance for integer rounding in PyMuPDF pixmap dimensions
+    assert megapixels <= max_mp * 1.01, f"Rendered {megapixels:.1f} MP exceeds {max_mp} MP limit"
+    assert w > 0 and h > 0
+
+    # Verify scale was actually reduced, not just clamped to 1.0
+    observed_scale = w / page_size
+    assert 1.0 < observed_scale < render_dpi / 72, (
+        f"Expected reduced scale, got {observed_scale:.4f}"
+    )
+
+
+def test_huge_mediabox_page_rejected(tmp_path: Path) -> None:
+    """A 14400×14400 pt page at default 40 MP limit — even at 72 DPI (207 MP)
+    exceeds the budget. ValueError must be raised before any pixmap allocation."""
+    path = tmp_path / "huge_mediabox.pdf"
+    doc = fitz.open()
+    doc.new_page(width=14400, height=14400)
+    doc.save(path)
+    doc.close()
+
+    extractor = PdfTextExtractor(
+        ocr_engine=StubOcrEngineEmpty(),
+        preprocessor=RecordingPreprocessor(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="превышает лимит 40 МП"):
+        extractor.extract(path)
+
+
+def test_normal_a4_renders_without_scale_reduction(tmp_path: Path) -> None:
+    """A normal A4 page (595×842 pt) at 300 DPI should render at ~2479×3508 px
+    with no scale reduction."""
+    render_dpi = 300
+    expected_w = round(595 * render_dpi / 72)  # 2479
+    expected_h = round(842 * render_dpi / 72)  # 3508
+
+    path = tmp_path / "a4.pdf"
+    doc = fitz.open()
+    doc.new_page(width=595, height=842)
+    doc.save(path)
+    doc.close()
+
+    preprocessor = RecordingPreprocessor()
+    extractor = PdfTextExtractor(
+        ocr_engine=StubOcrEngineEmpty(),
+        preprocessor=preprocessor,  # type: ignore[arg-type]
+        render_dpi=render_dpi,
+    )
+
+    pages = extractor.extract(path)
+
+    assert len(pages) == 1
+    assert preprocessor.last_size is not None
+    w, h = preprocessor.last_size
+    assert abs(w - expected_w) <= 2, f"Width {w} not within ±2 of {expected_w}"
+    assert abs(h - expected_h) <= 2, f"Height {h} not within ±2 of {expected_h}"
+
+
+def test_too_many_pages_raises_value_error(tmp_path: Path) -> None:
+    """A PDF with more pages than max_pages raises ValueError."""
+    path = tmp_path / "three_pages.pdf"
+    doc = fitz.open()
+    for _ in range(3):
+        doc.new_page()
+    doc.save(path)
+    doc.close()
+
+    extractor = PdfTextExtractor(
+        ocr_engine=StubOcrEngineEmpty(),
+        preprocessor=RecordingPreprocessor(),  # type: ignore[arg-type]
+        max_pages=2,
+    )
+
+    with pytest.raises(ValueError, match="допустимый лимит"):
+        extractor.extract(path)

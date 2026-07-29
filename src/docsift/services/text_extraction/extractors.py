@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import math
 from pathlib import Path
 
 import fitz
@@ -55,16 +56,25 @@ class PdfTextExtractor:
         ocr_engine: OcrEngineProtocol,
         preprocessor: ImagePreprocessor,
         render_dpi: int = 300,
+        max_pages: int = 200,
+        max_render_megapixels: int = 40,
     ) -> None:
         self._ocr_engine = ocr_engine
         self._preprocessor = preprocessor
         self._render_dpi = render_dpi
+        self._max_pages = max_pages
+        self._max_render_megapixels = max_render_megapixels
 
     def extract(self, path: Path) -> list[ExtractedPage]:
         pages: list[ExtractedPage] = []
         with fitz.open(path) as document:
             if document.page_count == 0:
                 raise ValueError("PDF contains no pages")
+            if document.page_count > self._max_pages:
+                raise ValueError(
+                    f"PDF содержит {document.page_count} страниц, "
+                    f"допустимый лимит — {self._max_pages}"
+                )
             for page_index, page in enumerate(document):
                 text = page.get_text("text")
                 words = page.get_text("words")
@@ -111,6 +121,37 @@ class PdfTextExtractor:
 
     def _extract_ocr_page(self, page: fitz.Page, number: int) -> ExtractedPage:
         scale = self._render_dpi / 72
+        max_pixels = self._max_render_megapixels * 1_000_000
+
+        pixel_w = page.rect.width * scale
+        pixel_h = page.rect.height * scale
+        total_pixels = pixel_w * pixel_h
+
+        if total_pixels > max_pixels:
+            ratio = max_pixels / total_pixels
+            new_scale = scale * math.sqrt(ratio)
+            if new_scale < 1.0:
+                new_scale = 1.0
+            logger.warning(
+                "Page %s: render megapixels %.1f exceeds limit %d, "
+                "reducing scale from %.4f to %.4f",
+                number,
+                total_pixels / 1_000_000,
+                self._max_render_megapixels,
+                scale,
+                new_scale,
+            )
+            scale = new_scale
+
+        pixel_w = page.rect.width * scale
+        pixel_h = page.rect.height * scale
+        if pixel_w * pixel_h > max_pixels:
+            raise ValueError(
+                f"Страница {number}: размер {page.rect.width:.0f}×{page.rect.height:.0f} пунктов "
+                f"({page.rect.width * page.rect.height / 1_000_000:.1f} МП) превышает "
+                f"лимит {self._max_render_megapixels} МП"
+            )
+
         pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), colorspace=fitz.csRGB)
         rendered = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
         prepared = self._preprocessor.prepare(rendered)
