@@ -260,11 +260,13 @@ def test_service_defaults_match_settings_defaults() -> None:
     """Service defaults equal Settings defaults — catches drift between the two."""
     from docsift.core.config import Settings
 
-    defaults = Settings()
     service = TextExtractionService()
 
-    assert service._pdf._max_pages == defaults.pdf_max_pages  # type: ignore[attr-defined]
-    assert service._pdf._max_render_megapixels == defaults.pdf_max_render_megapixels  # type: ignore[attr-defined]
+    assert service._pdf._max_pages == Settings.model_fields["pdf_max_pages"].default
+    assert (
+        service._pdf._max_render_megapixels
+        == Settings.model_fields["pdf_max_render_megapixels"].default
+    )
     assert (
         service._image._max_megapixels
         == Settings.model_fields["image_max_megapixels"].default
