@@ -363,7 +363,10 @@ async def _run_with_session(
         # типов (TYPE_CHECKING), поэтому в рантайме его надо тянуть явно.
         from docsift.services.text_extraction import TextExtractionService
 
-        text_service = TextExtractionService()
+        text_service = TextExtractionService(
+            pdf_max_pages=settings.pdf_max_pages,
+            pdf_max_render_megapixels=settings.pdf_max_render_megapixels,
+        )
     else:
         text_service = text_extraction_service
 

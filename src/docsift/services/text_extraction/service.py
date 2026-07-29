@@ -36,10 +36,16 @@ class TextExtractionService:
         ocr_engine: OcrEngineProtocol | None = None,
         preprocessor: ImagePreprocessor | None = None,
         pdf_render_dpi: int = 300,
+        pdf_max_pages: int = 200,
+        pdf_max_render_megapixels: int = 40,
     ) -> None:
         engine = ocr_engine or TesseractOcrEngine()
         image_preprocessor = preprocessor or ImagePreprocessor()
-        self._pdf = PdfTextExtractor(engine, image_preprocessor, pdf_render_dpi)
+        self._pdf = PdfTextExtractor(
+            engine, image_preprocessor, pdf_render_dpi,
+            max_pages=pdf_max_pages,
+            max_render_megapixels=pdf_max_render_megapixels,
+        )
         self._image = ImageTextExtractor(engine, image_preprocessor)
         self._spreadsheet = SpreadsheetTextExtractor()
 

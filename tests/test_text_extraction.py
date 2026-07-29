@@ -246,3 +246,22 @@ def test_too_many_pages_raises_value_error(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="допустимый лимит"):
         extractor.extract(path)
+
+
+def test_service_passes_pdf_limits_to_extractor() -> None:
+    """TextExtractionService forwards pdf_max_pages / pdf_max_render_megapixels."""
+    service = TextExtractionService(pdf_max_pages=7, pdf_max_render_megapixels=11)
+
+    assert service._pdf._max_pages == 7  # type: ignore[attr-defined]
+    assert service._pdf._max_render_megapixels == 11  # type: ignore[attr-defined]
+
+
+def test_service_defaults_match_settings_defaults() -> None:
+    """Service defaults equal Settings defaults — catches drift between the two."""
+    from docsift.core.config import Settings
+
+    defaults = Settings()
+    service = TextExtractionService()
+
+    assert service._pdf._max_pages == defaults.pdf_max_pages  # type: ignore[attr-defined]
+    assert service._pdf._max_render_megapixels == defaults.pdf_max_render_megapixels  # type: ignore[attr-defined]
