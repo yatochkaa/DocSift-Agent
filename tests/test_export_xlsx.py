@@ -995,3 +995,218 @@ def test_premium_layout_contract(sample_payload_with_line_items):
     )
     assert "Руководитель" not in workbook_text
     assert "Бухгалтер" not in workbook_text
+
+
+# ---------------------------------------------------------------------------
+# Formula-injection regression tests
+# ---------------------------------------------------------------------------
+
+def _load(payload):
+    from io import BytesIO
+    from openpyxl import load_workbook
+    return load_workbook(BytesIO(build_document_xlsx(payload)))
+
+
+def _assert_safe_string(cell, original):
+    """Assert that a cell stores a dangerous string safely as inline string."""
+    assert cell.data_type == "s", f"Cell should be inline string, got data_type={cell.data_type}"
+    assert cell.value == original, f"Cell value mismatch: expected {original!r}, got {cell.value!r}"
+
+
+def test_formula_injection_line_item_name():
+    """Line item name starting with '=' is stored as text, not formula."""
+    payload = {
+        "document": {"id": "doc-xss", "file_name": "evil.pdf"},
+        "extracted": {
+            "fields": [],
+            "line_items": [
+                {
+                    "name": "=cmd|'/c calc.exe'!A0",
+                    "unit": "шт",
+                    "quantity": 1,
+                    "unit_price": 100,
+                    "amount": 100,
+                    "vat_rate": "20",
+                    "vat_amount": 20,
+                    "total": 120,
+                },
+            ],
+        },
+        "guardrails": [],
+    }
+    wb = _load(payload)
+
+    # Позиции sheet — name column (B5)
+    ws = wb["Позиции"]
+    cell = ws.cell(row=5, column=2)
+    _assert_safe_string(cell, "=cmd|'/c calc.exe'!A0")
+
+    # Документ sheet — same name appears in the line-items table (row 13, col B)
+    ws_doc = wb["Документ"]
+    doc_cell = ws_doc.cell(row=13, column=2)
+    _assert_safe_string(doc_cell, "=cmd|'/c calc.exe'!A0")
+
+
+def test_formula_injection_supplier_name():
+    """Supplier name starting with '=' is stored as text, not formula."""
+    payload = {
+        "document": {"id": "doc-xss", "file_name": "evil.pdf"},
+        "extracted": {
+            "fields": [
+                {
+                    "path": "/supplier/name",
+                    "name": "Поставщик",
+                    "value": '=HYPERLINK("http://evil","x")',
+                    "original_value": '=HYPERLINK("http://evil","x")',
+                    "confidence": 1.0,
+                    "corrected": False,
+                },
+            ],
+            "line_items": [],
+        },
+        "guardrails": [],
+    }
+    wb = _load(payload)
+    ws = wb["Документ"]
+    cell = ws["A7"]
+    _assert_safe_string(cell, '=HYPERLINK("http://evil","x")')
+
+
+def test_formula_injection_review_and_guardrails():
+    """Field value '+' and guardrail '@' are stored as text, not formula."""
+    payload = {
+        "document": {"id": "doc-xss", "file_name": "evil.pdf"},
+        "extracted": {
+            "fields": [
+                {
+                    "path": "/test",
+                    "name": "Тест",
+                    "value": "+1+1",
+                    "original_value": "+1+1",
+                    "confidence": 0.9,
+                    "corrected": False,
+                },
+            ],
+            "line_items": [],
+        },
+        "guardrails": [
+            {
+                "rule": "/test",
+                "passed": False,
+                "message": "/test: @SUM(A1:A9) is invalid",
+            },
+        ],
+    }
+    wb = _load(payload)
+
+    # Проверка sheet — value column (C5)
+    ws_rev = wb["Проверка"]
+    cell = ws_rev.cell(row=5, column=3)
+    _assert_safe_string(cell, "+1+1")
+
+    # Guardrails sheet — explanation column (C5)
+    ws_gr = wb["Guardrails"]
+    cell = ws_gr.cell(row=5, column=3)
+    _assert_safe_string(cell, "@SUM(A1:A9) is invalid")
+
+
+def test_formula_injection_concatenated_cells():
+    """Doc number '=1' and filename '=x.pdf' are safe in concatenated title."""
+    payload = {
+        "document": {"id": "doc-concat", "file_name": "=x.pdf"},
+        "extracted": {
+            "fields": [
+                {
+                    "path": "/number",
+                    "name": "Номер",
+                    "value": "=1",
+                    "original_value": "=1",
+                    "confidence": 1.0,
+                    "corrected": False,
+                },
+            ],
+            "line_items": [],
+        },
+        "guardrails": [],
+    }
+    wb = _load(payload)
+    ws = wb["Документ"]
+    title_cell = ws["A3"]
+    title_value = str(title_cell.value)
+    # Title contains "=1" but starts with Cyrillic, so no formula interpretation
+    assert "=1" in title_value
+    assert title_cell.data_type == "s"
+
+
+def test_normal_strings_not_modified_by_sanitization():
+    """Normal strings and numbers are not modified by formula sanitization."""
+    payload = {
+        "document": {"id": "doc-normal", "file_name": "normal.pdf"},
+        "extracted": {
+            "fields": [],
+            "line_items": [
+                {
+                    "name": "Услуги хостинга",
+                    "unit": "усл",
+                    "quantity": 1,
+                    "unit_price": 1500.50,
+                    "amount": 1500.50,
+                    "vat_rate": "20",
+                    "vat_amount": 300.10,
+                    "total": 1800.60,
+                },
+            ],
+        },
+        "guardrails": [],
+    }
+    wb = _load(payload)
+
+    # String not modified
+    ws = wb["Позиции"]
+    cell = ws.cell(row=5, column=2)
+    assert cell.value == "Услуги хостинга"
+    assert cell.data_type == "s"
+
+    # Number unchanged
+    cell_price = ws.cell(row=5, column=5)
+    assert isinstance(cell_price.value, (int, float))
+    assert cell_price.value == 1500.50
+
+
+def test_formula_injection_xml_clean():
+    """Saved XLSX XML has no formula elements for dangerous strings."""
+    import zipfile
+    from io import BytesIO
+
+    payload = {
+        "document": {"id": "doc-xml", "file_name": "evil.pdf"},
+        "extracted": {
+            "fields": [],
+            "line_items": [
+                {
+                    "name": "=cmd|'/c calc.exe'!A0",
+                    "unit": "шт",
+                    "quantity": 1,
+                    "unit_price": 100,
+                    "amount": 100,
+                    "vat_rate": "20",
+                    "vat_amount": 20,
+                    "total": 120,
+                },
+            ],
+        },
+        "guardrails": [],
+    }
+    xlsx_bytes = build_document_xlsx(payload)
+
+    with zipfile.ZipFile(BytesIO(xlsx_bytes), "r") as zf:
+        for name in zf.namelist():
+            if name.endswith(".xml"):
+                content = zf.read(name).decode("utf-8", errors="replace")
+                # No <f> formula elements should contain our payload
+                import re
+                formulas = re.findall(r"<f>([^<]+)</f>", content)
+                for formula in formulas:
+                    assert "cmd" not in formula.lower(), (
+                        f"Formula element found in XML: {formula}"
+                    )

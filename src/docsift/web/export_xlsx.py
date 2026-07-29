@@ -13,6 +13,7 @@ from typing import Any, Mapping, Sequence
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import column_index_from_string
 
 
 DARK = "243142"
@@ -94,6 +95,18 @@ def _item_value(item: Mapping[str, Any], *keys: str) -> Any:
         if key in item:
             return item.get(key)
     return None
+
+
+
+def _safe_cell(ws: Any, row: int, col: int, value: str) -> None:
+    """Write a string cell with XLSX-native formula-injection protection.
+
+    Sets ``data_type = "s"`` (inline string) so openpyxl writes ``<c t="inlineStr">``
+    in the XML, preventing formula interpretation by Excel/LibreOffice.  The cell
+    value is **not** modified — no leading apostrophe is prepended.
+    """
+    cell = ws.cell(row, col, value)
+    cell.data_type = "s"
 
 
 def _field_map(payload: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
@@ -258,11 +271,11 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     for column, width in widths.items():
         ws.column_dimensions[column].width = width
 
-    ws["A1"] = "DocSift  /  ПРОВЕРЕННЫЙ ДОКУМЕНТ"
+    _safe_cell(ws, 1, 1, "DocSift  /  ПРОВЕРЕННЫЙ ДОКУМЕНТ")
     ws["A1"].font = Font(name="Arial", size=9, bold=True, color=BLUE)
     ws["A1"].alignment = Alignment(vertical="center")
     ws.merge_cells("A1:F1")
-    ws["G1"] = "ПРОВЕРЕНО"
+    _safe_cell(ws, 1, 7, "ПРОВЕРЕНО")
     ws["G1"].font = Font(name="Arial", size=10, bold=True, color="237A45")
     ws["G1"].fill = PatternFill("solid", fgColor="E9F5EE")
     ws["G1"].alignment = Alignment(horizontal="center", vertical="center")
@@ -270,17 +283,18 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     ws.merge_cells("G1:J1")
     ws.row_dimensions[1].height = 21.75
 
-    ws["A3"] = title
+    _safe_cell(ws, 3, 1, title)
     ws["A3"].font = Font(name="Arial", size=17, bold=True, color=DARK)
     ws["A3"].alignment = Alignment(vertical="center")
     ws["A3"].border = Border(bottom=MEDIUM)
     ws.merge_cells("A3:J3")
     ws.row_dimensions[3].height = 33.75
 
-    ws["A4"] = f"Источник: {file_name}" if file_name else "Источник: не указан"
+    source_text = f"Источник: {file_name}" if file_name else "Источник: не указан"
+    _safe_cell(ws, 4, 1, source_text)
     ws["A4"].font = Font(name="Arial", size=8, color=MUTED)
     ws.merge_cells("A4:F4")
-    ws["G4"] = f"Исправлено полей: {corrected_count}"
+    _safe_cell(ws, 4, 7, f"Исправлено полей: {corrected_count}")
     ws["G4"].font = Font(name="Arial", size=8, color=MUTED)
     ws["G4"].alignment = Alignment(horizontal="right")
     ws.merge_cells("G4:J4")
@@ -297,14 +311,14 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         heading_cell.fill = PatternFill("solid", fgColor=SOFT)
         heading_cell.border = CELL_BORDER
         ws.merge_cells(f"{start}6:{end}6")
+        _safe_cell(ws, 7, column_index_from_string(start), name or "Не указан")
         name_cell = ws[f"{start}7"]
-        name_cell.value = name or "Не указан"
         name_cell.font = Font(name="Arial", size=10, bold=True, color=DARK)
         name_cell.alignment = Alignment(vertical="center", wrap_text=True)
         name_cell.border = Border(left=THIN, right=THIN)
         ws.merge_cells(f"{start}7:{end}8")
+        _safe_cell(ws, 9, column_index_from_string(start), details)
         details_cell = ws[f"{start}9"]
-        details_cell.value = details
         details_cell.font = Font(name="Arial", size=8, color=MUTED)
         details_cell.alignment = Alignment(vertical="center")
         details_cell.border = Border(left=THIN, right=THIN, bottom=THIN)
@@ -333,6 +347,7 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
             amount = _num(_item_value(item, "amount", "subtotal"))
             vat_amount = _num(_item_value(item, "vat_amount"))
             total = _num(_item_value(item, "total", "total_amount"))
+            vat_rate = _item_value(item, "vat_rate")
             if total is None and (amount is not None or vat_amount is not None):
                 total = _num_or_zero(amount) + _num_or_zero(vat_amount)
             values = (
@@ -343,13 +358,16 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
                 quantity,
                 price,
                 amount,
-                _item_value(item, "vat_rate"),
+                vat_rate,
                 vat_amount,
                 total,
             )
             for col, value in enumerate(values, 1):
                 if value is not None:
-                    ws.cell(row, col, value)
+                    if isinstance(value, str):
+                        _safe_cell(ws, row, col, value)
+                    else:
+                        ws.cell(row, col, value)
                 cell = ws.cell(row, col)
                 cell.font = Font(name="Arial", size=8, color=DARK)
                 cell.alignment = Alignment(
@@ -364,9 +382,8 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
             ws.cell(row, 5).number_format = "#,##0.###"
             for col in (6, 7, 9, 10):
                 ws.cell(row, col).number_format = "#,##0.00"
-            vat_rate = _item_value(item, "vat_rate")
             if vat_rate == "without_vat":
-                ws.cell(row, 8, "без НДС")
+                _safe_cell(ws, row, 8, "без НДС")
             elif _num(vat_rate) is not None:
                 ws.cell(row, 8).number_format = "0.##%"
                 numeric_rate = _num(vat_rate)
@@ -377,7 +394,7 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         ws.freeze_panes = "A13"
     else:
         data_end = data_start
-        ws["A13"] = "В документе нет табличных позиций"
+        _safe_cell(ws, 13, 1, "В документе нет табличных позиций")
         ws["A13"].font = Font(name="Arial", size=9, italic=True, color=MUTED)
         ws["A13"].alignment = Alignment(horizontal="center", vertical="center")
         ws["A13"].border = Border(bottom=THIN)
@@ -405,7 +422,7 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         (totals_start + 1, "НДС", total_vat, False),
         (totals_start + 2, "Всего к оплате", grand_total, True),
     ):
-        ws.cell(row, 6, label)
+        _safe_cell(ws, row, 6, label)
         ws.merge_cells(start_row=row, start_column=6, end_row=row, end_column=9)
         ws.cell(row, 10, value)
         ws.cell(row, 10).number_format = '#,##0.00 "₽"'
@@ -420,23 +437,24 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
 
     summary_row = totals_start + 4
     count = len(line_items)
-    ws.cell(summary_row, 1, f"Всего наименований: {count}, на сумму {grand_total:,.2f} руб.")
+    _safe_cell(ws, summary_row, 1, f"Всего наименований: {count}, на сумму {grand_total:,.2f} руб.")
     ws.cell(summary_row, 1).font = Font(name="Arial", size=8, color=MUTED)
     ws.merge_cells(start_row=summary_row, start_column=1, end_row=summary_row, end_column=10)
     words_row = summary_row + 1
-    ws.cell(words_row, 1, _money_in_words(grand_total))
+    _safe_cell(ws, words_row, 1, _money_in_words(grand_total))
     ws.cell(words_row, 1).font = Font(name="Arial", size=9, bold=True, color=DARK)
     ws.cell(words_row, 1).border = Border(bottom=MEDIUM)
     ws.merge_cells(start_row=words_row, start_column=1, end_row=words_row, end_column=10)
 
     review_heading_row = words_row + 2
-    ws.cell(review_heading_row, 1, "СВЕДЕНИЯ О ПРОВЕРКЕ")
+    _safe_cell(ws, review_heading_row, 1, "СВЕДЕНИЯ О ПРОВЕРКЕ")
     ws.cell(review_heading_row, 1).font = Font(name="Arial", size=9, bold=True, color=BLUE)
     ws.cell(review_heading_row, 1).fill = PatternFill("solid", fgColor=SOFT)
     ws.merge_cells(start_row=review_heading_row, start_column=1, end_row=review_heading_row, end_column=10)
     status_row = review_heading_row + 1
     checks_text = "пройдены" if all_guardrails_passed else "требуют внимания"
-    ws.cell(
+    _safe_cell(
+        ws,
         status_row,
         1,
         f"Статус: проверка завершена   •   Ручных исправлений: {corrected_count}   •   Контрольные проверки: {checks_text}",
@@ -444,7 +462,8 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     ws.cell(status_row, 1).font = Font(name="Arial", size=8, color=DARK)
     ws.merge_cells(start_row=status_row, start_column=1, end_row=status_row, end_column=10)
     note_row = status_row + 1
-    ws.cell(
+    _safe_cell(
+        ws,
         note_row,
         1,
         "Исходные данные модели сохранены отдельно. Итоговые значения учитывают подтверждённые ручные исправления.",
@@ -453,10 +472,10 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=10)
 
     reviewer_row = note_row + 3
-    ws.cell(reviewer_row, 1, "Ответственный за проверку  __________________________")
+    _safe_cell(ws, reviewer_row, 1, "Ответственный за проверку  __________________________")
     ws.cell(reviewer_row, 1).font = Font(name="Arial", size=8, color=DARK)
     ws.merge_cells(start_row=reviewer_row, start_column=1, end_row=reviewer_row, end_column=5)
-    ws.cell(reviewer_row, 7, "Дата  __________________")
+    _safe_cell(ws, reviewer_row, 7, "Дата  __________________")
     ws.cell(reviewer_row, 7).font = Font(name="Arial", size=8, color=DARK)
     ws.merge_cells(start_row=reviewer_row, start_column=7, end_row=reviewer_row, end_column=10)
 
@@ -469,10 +488,10 @@ def _build_document_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
 def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     ws.title = "Позиции"
     line_items = list(payload.get("extracted", {}).get("line_items", []) or [])
-    ws["A1"] = "Позиции документа"
+    _safe_cell(ws, 1, 1, "Позиции документа")
     ws["A1"].font = Font(name="Arial", size=12, bold=True, color=DARK)
     ws.merge_cells("A1:I1")
-    ws["A2"] = "Структурированные итоговые значения после ручной проверки"
+    _safe_cell(ws, 2, 1, "Структурированные итоговые значения после ручной проверки")
     ws["A2"].font = Font(name="Arial", size=9, italic=True, color=MUTED)
     ws.merge_cells("A2:I2")
 
@@ -481,7 +500,7 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         ws.column_dimensions[column].width = width
 
     if not line_items:
-        ws["A4"] = "В документе нет табличных позиций"
+        _safe_cell(ws, 4, 1, "В документе нет табличных позиций")
         ws["A4"].font = Font(name="Arial", size=10, italic=True, color=MUTED)
         ws.merge_cells("A4:I4")
         _set_print(ws, "A1:I4", orientation="landscape")
@@ -489,7 +508,7 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
 
     headers = ("№", "Наименование", "Ед. изм.", "Количество", "Цена", "Сумма без НДС", "Ставка НДС", "Сумма НДС", "Всего с НДС")
     for col, header in enumerate(headers, 1):
-        ws.cell(4, col, header)
+        _safe_cell(ws, 4, col, header)
         _style_header(ws.cell(4, col))
     ws.row_dimensions[4].height = 27.75
 
@@ -498,6 +517,7 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         amount = _num(_item_value(item, "amount", "subtotal"))
         vat_amount = _num(_item_value(item, "vat_amount"))
         total = _num(_item_value(item, "total", "total_amount"))
+        vat_rate = _item_value(item, "vat_rate")
         if total is None and (amount is not None or vat_amount is not None):
             total = _num_or_zero(amount) + _num_or_zero(vat_amount)
         values = (
@@ -507,13 +527,16 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
             _num(_item_value(item, "quantity", "qty")),
             _num(_item_value(item, "unit_price", "price")),
             amount,
-            _item_value(item, "vat_rate"),
+            vat_rate,
             vat_amount,
             total,
         )
         for col, value in enumerate(values, 1):
             if value is not None:
-                ws.cell(row, col, value)
+                if isinstance(value, str):
+                    _safe_cell(ws, row, col, value)
+                else:
+                    ws.cell(row, col, value)
             cell = ws.cell(row, col)
             cell.font = Font(name="Arial", size=9, color=DARK)
             cell.alignment = Alignment(
@@ -527,9 +550,8 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         ws.cell(row, 4).number_format = "#,##0.###"
         for col in (5, 6, 8, 9):
             ws.cell(row, col).number_format = "#,##0.00"
-        vat_rate = _item_value(item, "vat_rate")
         if vat_rate == "without_vat":
-            ws.cell(row, 7, "без НДС")
+            _safe_cell(ws, row, 7, "без НДС")
         elif _num(vat_rate) is not None:
             numeric_rate = _num(vat_rate)
             ws.cell(row, 7, numeric_rate / 100 if numeric_rate and numeric_rate > 1 else numeric_rate)
@@ -545,7 +567,7 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         else _num_or_zero(_item_value(item, "amount", "subtotal")) + _num_or_zero(_item_value(item, "vat_amount"))
         for item in line_items
     )
-    ws.cell(totals_row, 1, "ИТОГО")
+    _safe_cell(ws, totals_row, 1, "ИТОГО")
     ws.merge_cells(start_row=totals_row, start_column=1, end_row=totals_row, end_column=5)
     ws.cell(totals_row, 6, subtotal)
     ws.cell(totals_row, 8, vat_total)
@@ -564,15 +586,15 @@ def _build_positions_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
 def _build_review_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     ws.title = "Проверка"
     fields = list(payload.get("extracted", {}).get("fields", []) or [])
-    ws["A1"] = "Журнал ручной проверки"
+    _safe_cell(ws, 1, 1, "Журнал ручной проверки")
     ws["A1"].font = Font(name="Arial", size=12, bold=True, color=DARK)
     ws.merge_cells("A1:F1")
-    ws["A2"] = "Жёлтым отмечены значения, которые были изменены пользователем"
+    _safe_cell(ws, 2, 1, "Жёлтым отмечены значения, которые были изменены пользователем")
     ws["A2"].font = Font(name="Arial", size=9, italic=True, color=MUTED)
     ws.merge_cells("A2:F2")
     headers = ("Поле", "Значение модели", "Итоговое значение", "Уверенность", "Статус", "Технический путь")
     for col, header in enumerate(headers, 1):
-        ws.cell(4, col, header)
+        _safe_cell(ws, 4, col, header)
         _style_header(ws.cell(4, col))
     for offset, field in enumerate(fields):
         row = 5 + offset
@@ -588,7 +610,10 @@ def _build_review_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
         )
         for col, value in enumerate(values, 1):
             if value is not None:
-                ws.cell(row, col, value)
+                if isinstance(value, str):
+                    _safe_cell(ws, row, col, value)
+                else:
+                    ws.cell(row, col, value)
             cell = ws.cell(row, col)
             cell.font = Font(name="Arial", size=9, color=DARK)
             cell.alignment = Alignment(vertical="center", wrap_text=True)
@@ -621,15 +646,15 @@ def _guardrail_path(rule: Mapping[str, Any]) -> str:
 
 def _build_guardrails_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
     ws.title = "Guardrails"
-    ws["A1"] = "Контрольные проверки"
+    _safe_cell(ws, 1, 1, "Контрольные проверки")
     ws["A1"].font = Font(name="Arial", size=12, bold=True, color=DARK)
     ws.merge_cells("A1:D1")
-    ws["A2"] = "Итоговое состояние проверок после применения ручных исправлений"
+    _safe_cell(ws, 2, 1, "Итоговое состояние проверок после применения ручных исправлений")
     ws["A2"].font = Font(name="Arial", size=9, italic=True, color=MUTED)
     ws.merge_cells("A2:D2")
     headers = ("Проверка", "Результат", "Пояснение", "Технический путь")
     for col, header in enumerate(headers, 1):
-        ws.cell(4, col, header)
+        _safe_cell(ws, 4, col, header)
         _style_header(ws.cell(4, col))
 
     seen: set[tuple[str, bool, str]] = set()
@@ -641,7 +666,7 @@ def _build_guardrails_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
             guardrails.append(rule)
 
     if not guardrails:
-        ws["A5"] = "Нарушений не зарегистрировано"
+        _safe_cell(ws, 5, 1, "Нарушений не зарегистрировано")
         ws["A5"].font = Font(name="Arial", size=9, italic=True, color=MUTED)
         ws.merge_cells("A5:D5")
         last_row = 5
@@ -659,7 +684,10 @@ def _build_guardrails_sheet(ws: Any, payload: Mapping[str, Any]) -> None:
                 path,
             )
             for col, value in enumerate(values, 1):
-                ws.cell(row, col, value)
+                if isinstance(value, str):
+                    _safe_cell(ws, row, col, value)
+                else:
+                    ws.cell(row, col, value)
                 cell = ws.cell(row, col)
                 cell.font = Font(name="Arial", size=9, color=DARK)
                 cell.alignment = Alignment(vertical="center", wrap_text=True)

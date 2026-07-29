@@ -234,11 +234,27 @@ async def document_source(
         raise HTTPException(status_code=404, detail="Исходный файл не найден") from exc
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Исходный файл не найден")
+    
+    # Determine media_type from server-side allowlist based on file extension, not from database
+    file_name = str(document.get("file_name") or path.name)
+    try:
+        media_type = storage.detect_content_type(file_name)
+    except Exception:
+        media_type = "application/octet-stream"
+    
+    # Add security headers to prevent XSS and content sniffing
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox",
+        "X-Frame-Options": "SAMEORIGIN",
+    }
+    
     return FileResponse(
         path=str(path),
-        media_type=str(document.get("content_type") or "application/octet-stream"),
-        filename=str(document.get("file_name") or path.name),
+        media_type=media_type,
+        filename=file_name,
         content_disposition_type="inline",
+        headers=headers,
     )
 
 
@@ -323,8 +339,54 @@ async def upload_document(
     200. Чтобы пользователь при этом видел причину, а не пустой экран, подмена
     на ошибке разрешена точечно в app.js (htmx:beforeSwap).
     """
-    payload = await file.read()
+    from docsift.core.config import get_settings
+
+    settings = get_settings()
     file_name = file.filename or "document.pdf"
+    
+    # Check Content-Length header first if present to avoid reading oversized files
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > settings.max_upload_bytes:
+                payload = b""  # Don't read the body
+                code = "upload_too_large"
+                logger.warning("upload rejected: Content-Length %s > %s", content_length, settings.max_upload_bytes)
+                card = build_upload_card(
+                    document_id=None,
+                    file_name=file_name,
+                    status="failed",
+                    size_bytes=int(content_length),
+                    content_type=file.content_type,
+                    error_code=code,
+                )
+                return templates.TemplateResponse(
+                    request,
+                    "partials/upload_item.html",
+                    {"card": card},
+                    status_code=UPLOAD_ERROR_STATUS[code],
+                )
+        except ValueError:
+            # Invalid Content-Length header, continue to read the file
+            pass
+    
+    # Read file in chunks to avoid DoS via memory exhaustion
+    payload = bytearray()
+    chunk_size = settings.upload_chunk_bytes
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        payload.extend(chunk)
+        # Stop reading if we exceed the limit
+        if len(payload) > settings.max_upload_bytes:
+            from docsift.pipeline.storage import UploadTooLargeError
+            raise UploadTooLargeError(
+                f"Размер файла ({len(payload)} байт) превышает "
+                f"допустимый лимит ({settings.max_upload_bytes} байт)"
+            )
+    
+    payload = bytes(payload)
 
     try:
         result = await gateway.upload(file_name, payload)

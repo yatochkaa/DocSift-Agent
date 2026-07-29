@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import weakref
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -59,6 +60,31 @@ DEFAULT_TENANT_ID = UUID("00000000-0000-0000-0000-000000000000")
 
 #: Ссылки на запущенные фоновые задачи, чтобы их не убил сборщик мусора.
 _background_tasks: set[asyncio.Task[Any]] = set()
+
+# Ленивые семафоры по event-loop и лимиту.  WeakKeyDictionary следит за тем,
+# чтобы завершённые loop не утекали в память.
+_semaphores_by_loop: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[int, asyncio.Semaphore]
+] = weakref.WeakKeyDictionary()
+
+
+def _get_semaphore(limit: int) -> asyncio.Semaphore:
+    """Вернуть семафор для текущего event-loop с заданным *limit*.
+
+    При первом обращении создаёт семафор и привязывает его к loop.
+    Если *limit* изменился — создаёт новый семафор (старый больше не
+    используется в данном loop).
+    """
+    loop = asyncio.get_running_loop()
+    by_limit = _semaphores_by_loop.get(loop)
+    if by_limit is None:
+        by_limit = {}
+        _semaphores_by_loop[loop] = by_limit
+    sem = by_limit.get(limit)
+    if sem is None:
+        sem = asyncio.Semaphore(limit)
+        by_limit[limit] = sem
+    return sem
 
 
 def _basename(file_name: str) -> str:
@@ -302,16 +328,18 @@ async def _process_document(
 
     Возвращает финальный статус документа (строкой).
     """
+    semaphore = _get_semaphore(settings.llm_max_concurrency)
     try:
-        async with session_factory() as session:
-            return await _run_with_session(
-                session=session,
-                document_id=document_id,
-                stored=stored,
-                settings=settings,
-                text_extraction_service=text_extraction_service,
-                extraction_service=extraction_service,
-            )
+        async with semaphore:
+            async with session_factory() as session:
+                return await _run_with_session(
+                    session=session,
+                    document_id=document_id,
+                    stored=stored,
+                    settings=settings,
+                    text_extraction_service=text_extraction_service,
+                    extraction_service=extraction_service,
+                )
     except Exception:
         # Финальная страховка: ни одна ошибка не должна «вывалиться» молча.
         # Сессия уже закрыта, поэтому просто фиксируем статус через новую.

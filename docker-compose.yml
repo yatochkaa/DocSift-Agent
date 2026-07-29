@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17-alpine
     ports:
-    - "5432:5432"
+    - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: docsift
       POSTGRES_USER: docsift
@@ -21,8 +21,9 @@ services:
       DOCSIFT_DATABASE_URL: postgresql+asyncpg://docsift:docsift-local@postgres:5432/docsift
       DOCSIFT_STORAGE_PATH: /data/uploads
       DOCSIFT_MAX_UPLOAD_BYTES: 20971520
+      DOCSIFT_WEB_SECRET: ${DOCSIFT_WEB_SECRET:-}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy

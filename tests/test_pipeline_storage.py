@@ -15,6 +15,14 @@ from docsift.pipeline.storage import (
     UploadTooLargeError,
 )
 
+# ── magic bytes prefixes ────────────────────────────────────────────────
+
+_PDF = b"%PDF-"
+_PNG = b"\x89PNG\r\n\x1a\n"
+_JPG = b"\xff\xd8\xff"
+_TIF = b"II*\x00"
+
+
 # ── вспомогательные fixtures ─────────────────────────────────────────────
 
 
@@ -33,7 +41,7 @@ def storage(root: Path) -> DocumentStorage:
 
 class TestSaveHappyPath:
     def test_file_written_to_disk(self, storage: DocumentStorage, root: Path) -> None:
-        payload = b"hello world"
+        payload = _PDF + b"hello world"
         result = storage.save(file_name="doc.pdf", payload=payload)
 
         assert isinstance(result, StoredFile)
@@ -45,7 +53,7 @@ class TestSaveHappyPath:
         assert result.already_existed is False
 
     def test_file_is_actually_on_disk(self, storage: DocumentStorage, root: Path) -> None:
-        payload = b"persistent data"
+        payload = _PNG + b"persistent data"
         result = storage.save(file_name="test.png", payload=payload)
 
         assert os.path.isfile(result.absolute_path)
@@ -91,7 +99,7 @@ class TestObjectKeyDeterminism:
 
 class TestAlreadyExisted:
     def test_resave_same_bytes_returns_already_existed(self, storage: DocumentStorage) -> None:
-        payload = b"duplicate content"
+        payload = _PDF + b"duplicate content"
         first = storage.save(file_name="a.pdf", payload=payload)
         second = storage.save(file_name="b.pdf", payload=payload)
 
@@ -99,7 +107,7 @@ class TestAlreadyExisted:
         assert second.already_existed is True
 
     def test_resave_does_not_corrupt_file(self, storage: DocumentStorage) -> None:
-        payload = b"original data"
+        payload = _PDF + b"original data"
         storage.save(file_name="c.pdf", payload=payload)
         result = storage.save(file_name="d.pdf", payload=payload)
 
@@ -111,13 +119,13 @@ class TestAlreadyExisted:
 
 class TestUploadTooLarge:
     def test_raises_on_oversized_file(self, storage: DocumentStorage) -> None:
-        oversized = b"x" * 1025  # лимит 1024
+        oversized = _PDF + b"x" * 1021  # 5 + 1021 = 1026 > 1024
 
         with pytest.raises(UploadTooLargeError, match="превышает"):
             storage.save(file_name="big.pdf", payload=oversized)
 
     def test_exact_limit_passes(self, storage: DocumentStorage) -> None:
-        exact = b"y" * 1024
+        exact = _PDF + b"y" * (1024 - len(_PDF))  # exactly 1024
 
         result = storage.save(file_name="exact.pdf", payload=exact)
         assert result.size_bytes == 1024
@@ -162,21 +170,23 @@ class TestResolve:
 
 class TestSupportedExtensions:
     @pytest.mark.parametrize(
-        "ext,expected_ct",
+        "ext,expected_ct,prefix",
         [
-            (".pdf", "application/pdf"),
-            (".png", "image/png"),
-            (".jpg", "image/jpeg"),
-            (".jpeg", "image/jpeg"),
-            (".tif", "image/tiff"),
-            (".tiff", "image/tiff"),
+            (".pdf", "application/pdf", _PDF),
+            (".png", "image/png", _PNG),
+            (".jpg", "image/jpeg", _JPG),
+            (".jpeg", "image/jpeg", _JPG),
+            (".tif", "image/tiff", _TIF),
+            (".tiff", "image/tiff", _TIF),
         ],
     )
-    def test_supported_types(self, storage: DocumentStorage, ext: str, expected_ct: str) -> None:
-        result = storage.save(file_name=f"doc{ext}", payload=b"data")
+    def test_supported_types(
+        self, storage: DocumentStorage, ext: str, expected_ct: str, prefix: bytes
+    ) -> None:
+        result = storage.save(file_name=f"doc{ext}", payload=prefix + b"data")
         assert result.content_type == expected_ct
 
     def test_uppercase_extension_normalised(self, storage: DocumentStorage) -> None:
-        result = storage.save(file_name="DOC.PDF", payload=b"data")
+        result = storage.save(file_name="DOC.PDF", payload=_PDF + b"data")
         assert result.content_type == "application/pdf"
         assert result.object_key.endswith(".pdf")

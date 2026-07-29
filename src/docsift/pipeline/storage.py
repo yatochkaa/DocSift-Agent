@@ -34,6 +34,15 @@ class DocumentStorage:
     _SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
         {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
     )
+    
+    # Magic byte signatures for each supported type
+    _MAGIC_SIGNATURES = {
+        b"%PDF-": ".pdf",
+        b"\x89PNG\r\n\x1a\n": ".png",
+        b"\xff\xd8\xff": ".jpg",  # Also covers .jpeg
+        b"II*\x00": ".tif",      # Also covers .tiff (little-endian)
+        b"MM\x00*": ".tif",      # Also covers .tiff (big-endian)
+    }
 
     def __init__(self, root: Path, max_bytes: int) -> None:
         self._root = root
@@ -82,6 +91,45 @@ class DocumentStorage:
             )
         return content_type
 
+    def _validate_magic_bytes(self, file_name: str, payload: bytes) -> None:
+        """Проверить сигнатуру файла по magic bytes.
+
+        Проверяет, что содержимое файла соответствует его расширению.
+        
+        Args:
+            file_name: Имя файла с расширением
+            payload: Байтовое содержимое файла
+            
+        Raises:
+            UnsupportedContentTypeError: если сигнатура не соответствует расширению
+        """
+        suffix = Path(file_name).suffix.lower()
+        
+        # Normalize extensions for comparison
+        normalized_suffix = suffix
+        if suffix in (".jpg", ".jpeg"):
+            normalized_suffix = ".jpg"
+        elif suffix in (".tif", ".tiff"):
+            normalized_suffix = ".tif"
+        
+        # Check magic bytes
+        matched_signature = None
+        for signature, sig_suffix in self._MAGIC_SIGNATURES.items():
+            if payload.startswith(signature):
+                matched_signature = sig_suffix
+                break
+        
+        if matched_signature is None:
+            raise UnsupportedContentTypeError(
+                f"Содержимое файла не соответствует ни одному поддерживаемому типу"
+            )
+        
+        # Check that the signature matches the extension
+        if normalized_suffix != matched_signature:
+            raise UnsupportedContentTypeError(
+                f"Содержимое файла (тип {matched_signature}) не соответствует расширению {suffix}"
+            )
+
     def save(
         self,
         *,
@@ -96,7 +144,7 @@ class DocumentStorage:
 
         Raises:
             UploadTooLargeError: если ``len(payload) > max_bytes``.
-            UnsupportedContentTypeError: если расширение не поддерживается.
+            UnsupportedContentTypeError: если расширение не поддерживается или содержимое не соответствует расширению.
         """
         if len(payload) > self._max_bytes:
             raise UploadTooLargeError(
@@ -105,6 +153,10 @@ class DocumentStorage:
             )
 
         content_type = self.detect_content_type(file_name)
+        
+        # Validate magic bytes before saving
+        self._validate_magic_bytes(file_name, payload)
+        
         sha256 = self.compute_sha256(payload)
         object_key = self.build_object_key(sha256, file_name)
         destination = self._root / object_key
