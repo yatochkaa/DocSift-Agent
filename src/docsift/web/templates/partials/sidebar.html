@@ -1,0 +1,13 @@
+<aside class="ds-rail" aria-label="Основное меню">
+  <a href="/" class="ds-rail-logo" aria-label="DocSift — на главную">DS</a>
+  <nav class="ds-rail-nav">
+    {% set items = [('/', 'activity', 'Поток'), ('/documents', 'files', 'Документы'), ('/evals', 'bar-chart-3', 'Прогоны')] %}
+    {% for href, icon, label in items %}
+      {% set active = request.url.path == href or (href != '/' and request.url.path.startswith(href ~ '/')) %}
+      <a href="{{ href }}" class="ds-rail-link{% if active %} is-active{% endif %}" aria-label="{{ label }}" title="{{ label }}" {% if active %}aria-current="page"{% endif %}>
+        <i data-lucide="{{ icon }}" aria-hidden="true"></i><span>{{ label }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+  <span class="ds-system-dot" title="Сервис доступен"><i></i></span>
+</aside>

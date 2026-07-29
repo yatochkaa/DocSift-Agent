@@ -1,0 +1,36 @@
+{% extends 'base_paper.html' %}
+{% block page_header %}{% endblock %}
+{% block content %}
+<section class="ds-flow-hero ds-flow-hero-v2">
+  <div><p class="ds-kicker">Документ → решение</p><h1>Из файла —<br><span>в проверенные данные.</span></h1></div>
+  <div class="ds-flow-intro"><p>DocSift читает документ, извлекает поля и отправляет человеку только то, что действительно требует внимания.</p><a class="ds-button is-primary" href="/documents">Загрузить документ <i data-lucide="arrow-right"></i></a></div>
+</section>
+
+<section class="ds-flow-machine ds-flow-machine-v2" aria-label="Как работает DocSift">
+  <div class="ds-machine-bar"><span><i></i> Обработка документа</span><span class="ds-machine-caption">OCR · LLM · Guardrails</span></div>
+  <div class="ds-machine-stage">
+    <article class="ds-source-sheet"><span class="ds-paper-type">PDF / IMG</span><small>ИСХОДНЫЙ ДОКУМЕНТ</small><strong>Счёт · акт · УПД</strong><div class="ds-paper-lines"><i></i><i></i><i></i><i></i></div><div class="ds-scanline"></div></article>
+    <div class="ds-machine-link left"><i></i></div>
+    <div class="ds-engine"><div class="ds-engine-ring"></div><b>DOCSIFT</b><span>понимает контекст</span></div>
+    <div class="ds-machine-link right"><i></i></div>
+    <article class="ds-result-sheet"><header><strong>Структурированные данные</strong><span>● ГОТОВО</span></header><div class="ds-result-grid"><div><small>ТИП</small><b>УПД</b></div><div><small>НОМЕР</small><b>№ 148</b></div><div><small>КОНТРАГЕНТ</small><b>Найден</b></div><div><small>СУММА</small><b>234 920 ₽</b></div></div><footer>✓ источник каждого поля сохранён</footer></article>
+  </div>
+  <ol class="ds-machine-steps"><li><b>1</b>Принят</li><li><b>2</b>Прочитан</li><li><b>3</b>Извлечён</li><li><b>4</b>Проверен</li></ol>
+</section>
+
+<section class="ds-workspace-home">
+  <div class="ds-section-title"><div><p class="ds-kicker">Рабочая очередь</p><h2>Что требует внимания</h2></div><a href="/documents">Все документы →</a></div>
+  <div class="ds-queue-grid">
+    {% for item in queues %}<a class="ds-queue-card is-{{ item.tone }}" href="{{ item.href }}"><span>{{ item.label }}</span><strong>{{ item.count }}</strong><small>{{ item.hint }}</small><i data-lucide="arrow-up-right"></i></a>{% endfor %}
+  </div>
+
+  <div class="ds-home-recent">
+    <header><div><h2>Последние документы</h2><p>Сначала — документы, где нужно принять решение.</p></div><a href="/documents">Открыть архив</a></header>
+    {% if recent.rows %}
+      <div class="ds-recent-list">
+      {% for row in recent.rows %}<a href="{{ row.href }}/review" class="ds-recent-row"><span class="ds-file-badge">{{ row.doc_type[:3] if row.doc_type and row.doc_type != '—' else 'DOC' }}</span><span class="ds-recent-main"><strong>{{ row.file_name }}</strong><small>{{ row.counterparty }} · {{ row.amount_text }}</small></span><span class="ds-state is-{{ row.status_chip.tone }}">{{ row.status_chip.label }}</span><span class="ds-row-action">Открыть <i data-lucide="arrow-right"></i></span></a>{% endfor %}
+      </div>
+    {% else %}<div class="ds-home-empty"><p>Документов пока нет.</p><a class="ds-button is-primary" href="/documents">Загрузить первый</a></div>{% endif %}
+  </div>
+</section>
+{% endblock %}

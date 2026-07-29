@@ -1,0 +1,80 @@
+{% extends 'base_paper.html' %}
+
+{% block subtitle %}
+  <p class="text-sm mt-1" style="color: var(--ds-muted)">{{ page.run_a_title }} → {{ page.run_b_title }}</p>
+{% endblock %}
+
+{% block content %}
+  <section class="card card-raised">
+    <h2 class="card-title mb-3">Краткий вывод</h2>
+    <p class="text-sm mb-3">{{ page.summary_text }}</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <p class="text-xs mb-2" style="color: var(--ds-muted)">Улучшилось</p>
+        {% if page.summary_improved %}
+          <ul class="flex flex-wrap gap-2">
+            {% for item in page.summary_improved %}<li class="chip chip-success">{{ item }}</li>{% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-sm" style="color: var(--ds-muted)">Нет улучшений</p>
+        {% endif %}
+      </div>
+      <div>
+        <p class="text-xs mb-2" style="color: var(--ds-muted)">Деградировало</p>
+        {% if page.summary_degraded %}
+          <ul class="flex flex-wrap gap-2">
+            {% for item in page.summary_degraded %}<li class="chip chip-danger">{{ item }}</li>{% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-sm" style="color: var(--ds-muted)">Нет деградаций</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="card card-raised mt-4">
+    <h2 class="card-title mb-4">Метрики по полям</h2>
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr><th>Поле</th><th class="right">A</th><th class="right">B</th><th class="right">Дельта</th></tr>
+        </thead>
+        <tbody>
+          {% for row in page.metrics %}
+            <tr>
+              <td data-label="Поле">{{ row.field_name }} <span class="text-xs" style="color: var(--ds-muted)">{{ row.metric }}</span></td>
+              <td data-label="A" class="right num" style="{{ row.a.style }}">{{ row.a.text }}</td>
+              <td data-label="B" class="right num" style="{{ row.b.style }}">{{ row.b.text }}</td>
+              <td data-label="Дельта" class="right num">
+                <span class="chip chip-{{ row.delta.tone }}">{{ row.delta.arrow }} {{ row.delta.text }}</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card card-raised mt-4">
+    <h2 class="card-title mb-4">Время и стоимость</h2>
+    <div class="overflow-x-auto">
+      <table class="table">
+        <thead>
+          <tr><th>Показатель</th><th class="right">A</th><th class="right">B</th><th class="right">Дельта</th></tr>
+        </thead>
+        <tbody>
+          {% for row in page.performance %}
+            <tr>
+              <td data-label="Показатель">{{ row.label }}</td>
+              <td data-label="A" class="right num">{{ row.a_text }}</td>
+              <td data-label="B" class="right num">{{ row.b_text }}</td>
+              <td data-label="Дельта" class="right num">
+                <span class="chip chip-{{ row.delta.tone }}">{{ row.delta.arrow }} {{ row.delta.text }}</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

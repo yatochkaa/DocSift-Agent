@@ -1,0 +1,16 @@
+{% macro status_text(chip) -%}{%- if chip.title and chip.label == chip.title -%}{{- chip.title.replace('_',' ')|capitalize -}}{%- else -%}{{- chip.label -}}{%- endif -%}{%- endmacro %}
+<div id="table-region" class="ds-doc-region htmx-fade">
+{% if page.rows %}
+  <div class="ds-doc-list ds-doc-list-v2">
+    <div class="ds-doc-head"><span>Документ</span><span>Контрагент</span><span>Сумма</span><span>Статус</span><span></span></div>
+    {% for row in page.rows %}<a href="{{ row.href }}/review" class="ds-doc-row">
+      <div class="ds-doc-identity"><span class="ds-file-badge">{{ row.doc_type[:3] if row.doc_type and row.doc_type != '—' else 'DOC' }}</span><span><strong title="{{ row.file_name }}">{{ row.file_name }}</strong><small>{{ row.doc_type }} · {{ row.date_text }} · {{ row.uploaded_text }}</small></span></div>
+      <span class="ds-doc-value" data-label="Контрагент">{{ row.counterparty }}</span>
+      <span class="ds-doc-value num" data-label="Сумма">{{ row.amount_text }}</span>
+      <span class="ds-doc-status" data-label="Статус">{% if row.is_processing %}<span class="ds-state is-processing" hx-get="/partials/documents/{{ row.id }}/status" hx-trigger="every 4s" hx-target="this" hx-swap="innerHTML">{{ status_text(row.status_chip) }}</span>{% else %}<span class="ds-state is-{{ row.status_chip.tone }}">{{ status_text(row.status_chip) }}</span>{% endif %}</span>
+      <span class="ds-row-action">{% if row.status_chip.label == 'Требуется проверка' %}Проверить{% elif row.status_chip.label == 'Ошибка' %}Подробнее{% else %}Открыть{% endif %}<i data-lucide="arrow-right"></i></span>
+    </a>{% endfor %}
+  </div>
+  <div class="ds-pagination">{% with pagination=page.pagination, base_query=page.base_query|default('',true) %}{% include 'partials/pagination.html' %}{% endwith %}</div>
+{% else %}<div class="ds-empty">{% with empty=page.empty %}{% include 'partials/empty_state.html' %}{% endwith %}</div>{% endif %}
+</div>

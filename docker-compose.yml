@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+    - "5432:5432"
+    environment:
+      POSTGRES_DB: docsift
+      POSTGRES_USER: docsift
+      POSTGRES_PASSWORD: docsift-local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docsift -d docsift"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    environment:
+      DOCSIFT_DATABASE_URL: postgresql+asyncpg://docsift:docsift-local@postgres:5432/docsift
+      DOCSIFT_STORAGE_PATH: /data/uploads
+      DOCSIFT_MAX_UPLOAD_BYTES: 20971520
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - document-storage:/data/uploads
+
+volumes:
+  postgres-data:
+  document-storage:
+

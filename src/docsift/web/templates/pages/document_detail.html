@@ -1,0 +1,111 @@
+{% extends 'base_paper.html' %}
+{% block page_header %}
+<header class="ds-page-head ds-review-heading">
+  <div><p class="ds-kicker">Документ / Ревью</p><h1>{{ page.file_name }}</h1><p>Слева — исходный документ. Справа — данные модели. Выберите поле, чтобы увидеть точный источник.</p></div>
+  <div class="ds-review-summary">{% with chip=page.status_chip %}{% include 'partials/chip.html' %}{% endwith %}<span>{{ page.doc_type }}</span><b>{{ page.amount_text }}</b></div>
+</header>
+{% endblock %}
+{% block content %}
+{% if request.query_params.get('bulk_saved') %}<div class="ds-review-notice is-success">Изменения сохранены, проверки обновлены</div>{% endif %}
+{% if request.query_params.get('review_complete') %}<div class="ds-review-notice is-success">{% if request.query_params.get('warnings_confirmed') %}Завершено после ручного подтверждения данных{% else %}Проверка завершена{% endif %}. Документ готов к выгрузке.</div>{% endif %}
+{% if request.query_params.get('review_issues') %}<div class="ds-review-notice is-warning">Проверка выполнена, но остались проблемы: {{ request.query_params.get('review_issues') }}.</div>{% endif %}
+{% if request.query_params.get('requires_confirmation') %}<div class="ds-review-notice is-warning">Есть расхождения. Сверьте их с оригиналом и подтвердите данные.</div>{% endif %}
+{% if request.query_params.get('review_error') %}<div class="ds-review-notice is-error">{{ request.query_params.get('review_error') }}</div>{% endif %}
+<section class="ds-review-actions">
+  <div><strong>{% if page.open_review_count %}{{ page.open_review_count }} полей требуют внимания{% else %}Можно завершить проверку{% endif %}</strong><span>{% if page.correction_count %}Сохранено исправлений: {{ page.correction_count }}{% else %}Исправления ещё не вносились{% endif %}</span></div>
+  <div>
+    {% if page.can_complete %}
+      <form method="post" action="/documents/{{ page.document_id }}/complete" class="ds-complete-form" x-data="{approved:false}">
+        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+        {% if page.open_review_count %}
+        <label class="ds-approval-card">
+          <input type="checkbox" name="confirm_warnings" x-model="approved" />
+          <span><strong>Документ проверен</strong><small>Я сверил данные с оригиналом и подтверждаю их.</small></span>
+        </label>
+        {% endif %}
+        <button class="ds-button{% if page.open_review_count %} is-primary{% endif %}" type="submit"{% if page.open_review_count %} :disabled="!approved"{% endif %}>Завершить проверку</button>
+      </form>
+    {% endif %}
+    {% if page.can_export %}<a class="ds-button is-primary" href="/documents/{{ page.document_id }}/export.xlsx"><i data-lucide="download"></i> Скачать XLSX</a>{% else %}<span class="ds-button is-disabled" title="Сначала завершите проверку">Скачать XLSX</span>{% endif %}
+    <form method="post" action="/documents/{{ page.document_id }}/delete" class="ds-delete-form" onsubmit="return confirm('Удалить документ и результаты его обработки? Это действие нельзя отменить.')">
+      <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+      <button class="ds-button is-danger" type="submit"><i data-lucide="trash-2"></i> Удалить</button>
+    </form>
+  </div>
+</section>
+
+  <div class="ds-review" x-data="{tab:'fields',active:null}">
+    <section class="ds-viewer">
+      <header><strong>Исходный документ</strong><span>{% if page.source_url %}оригинал{% else %}{{ page.pages|length }} стр.{% endif %}</span></header>
+      <div class="ds-viewer-scroll">
+      {% if page.source_kind == 'pdf' and page.source_url %}
+        <iframe class="ds-source-pdf" src="{{ page.source_url }}#toolbar=1&navpanes=0&view=FitH" title="Исходный PDF: {{ page.file_name }}"></iframe>
+      {% elif page.source_url %}
+        <figure class="ds-review-page" id="page-1">
+          <img src="{{ page.source_url }}" alt="Исходный документ" />
+          {% for field in page.fields %}{% for source in field.sources %}{% if source.page == 1 %}<span class="bbox" style="{{ source.style }}" :data-active="active === '{{ field.key }}'"></span>{% endif %}{% endfor %}{% endfor %}
+          <figcaption>Исходный файл</figcaption>
+        </figure>
+      {% elif page.pages %}
+        {% for preview in page.pages %}
+        <figure class="ds-review-page" id="page-{{ preview.number }}">
+          {% if preview.image_url %}<img src="{{ preview.image_url }}" alt="Страница {{ preview.number }}" loading="lazy" />{% else %}<div class="ds-page-unavailable"><i data-lucide="image-off"></i><span>Превью страницы недоступно</span></div>{% endif %}
+          {% for field in page.fields %}{% for source in field.sources %}{% if source.page == preview.number %}<span class="bbox" style="{{ source.style }}" :data-active="active === '{{ field.key }}'"></span>{% endif %}{% endfor %}{% endfor %}
+          <figcaption>Страница {{ preview.number }}</figcaption>
+        </figure>
+        {% endfor %}
+      {% else %}<div class="ds-page-unavailable"><i data-lucide="file-question"></i><span>Исходный файл не найден в хранилище</span></div>{% endif %}
+      </div>
+    </section>
+
+    <section class="ds-extractor">
+      <nav class="ds-review-tabs" role="tablist" aria-label="Разделы документа">
+        {% set tabs=[('fields','Поля'),('guardrails','Guardrails · '~page.guardrails_failed),('trace','Трейс'),('json','JSON')] %}
+        {% for key,label in tabs %}<button type="button" role="tab" :aria-selected="tab === '{{ key }}'" :class="{'is-active':tab === '{{ key }}'}" @click="tab='{{ key }}'">{{ label }}</button>{% endfor %}
+      </nav>
+
+      <div class="ds-tab-panel" x-show="tab === 'fields'">
+        {% if page.fields %}<div class="ds-fields">
+        {% for field in page.fields %}
+          <article class="ds-field ds-editable-field{% if field.corrected %} is-corrected{% endif %}" :class="{'is-active':active === '{{ field.key }}'}" @mouseenter="active='{{ field.key }}'" onclick="DocSift.startFieldEdit(this, event)">
+            <div class="ds-field-view">
+              <small>{{ field.name }}{% if field.corrected %}<em>исправлено</em>{% endif %}</small><strong>{{ field.value_text }}</strong><span class="is-{{ field.tone }}">{{ field.confidence_text }}{% if field.has_source %} · источник: стр. {{ field.sources[0].page }}{% endif %}</span>
+              {% if field.corrected %}<p>Модель: {{ field.original_value_text }}</p>{% endif %}
+              <span class="ds-field-hint">Нажмите для редактирования</span>
+            </div>
+            <form class="ds-inline-field-form" method="post" action="/documents/{{ page.document_id }}/fields" hidden onclick="event.stopPropagation()">
+              <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" />
+              <input type="hidden" name="field_path" value="{{ field.path }}" />
+              <label>{{ field.name }}<input type="text" name="value" value="{{ field.input_value }}" class="ds-field-input" /></label>
+              <div><button class="ds-button" type="button" onclick="DocSift.cancelFieldEdit(this)">Отмена</button><button class="ds-button is-primary" type="submit">Сохранить</button></div>
+            </form>
+          </article>
+        {% endfor %}
+        </div>{% else %}{% with empty=page.fields_empty %}{% include 'partials/empty_state.html' %}{% endwith %}{% endif %}
+
+        {% if page.line_items %}<form id="bulk-edit-form" method="post" action="/documents/{{ page.document_id }}/bulk-edit"><input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}" /><section class="ds-line-items"><header><span>Позиции <b>{{ page.line_items|length }}</b></span><button type="button" class="ds-button ds-line-edit-btn" id="edit-mode-btn" onclick="DocSift.toggleEditMode()"><i data-lucide="edit-3"></i> Редактировать позиции</button></header><div class="ds-line-scroll"><table><thead><tr>{% for h in page.line_item_headers %}<th>{{ h }}</th>{% endfor %}</tr></thead><tbody>{% for item in page.line_items %}{% set item_index = loop.index0 %}<tr>{% for cell in item.cells %}{% set cell_index = loop.index0 %}{% set raw_key = page.line_item_keys[cell_index] %}{% set editable = item.editable_cells.get(raw_key) %}{% if editable %}<td class="ds-editable-cell">
+          <div class="ds-field-view">{{ cell }}</div>
+          <input
+            type="text"
+            name="line_{{ item_index }}_{{ loop.index0 }}"
+            value="{{ editable.input_value }}"
+            class="ds-cell-input"
+            data-path="{{ editable.path }}"
+            style="display:none;"
+          />
+        </td>{% else %}<td>{{ cell }}</td>{% endif %}{% endfor %}</tr>{% endfor %}</tbody><tfoot><tr><td colspan="{{ page.line_item_headers|length - 1 if page.line_item_headers|length > 1 else 1 }}">Итого</td><td>{{ page.line_items_total_text }}</td></tr></tfoot></table></div><div id="edit-panel" class="ds-edit-panel" hidden><button class="ds-button" type="button" onclick="DocSift.cancelEditMode()">Отмена</button><button class="ds-button is-primary" type="button" onclick="DocSift.saveBulkEdit()">Сохранить изменения</button></div></section></form>{% endif %}
+      </div>
+
+      <div class="ds-tab-panel" x-show="tab === 'guardrails'" x-cloak>
+        {% if page.guardrails %}<div class="ds-guards">{% for rule in page.guardrails %}<article class="{% if not rule.passed %}is-warning{% endif %}"><span class="ds-guard-icon">{% if rule.passed %}✓{% else %}!{% endif %}</span><div class="ds-guard-copy"><strong>{{ rule.rule }}</strong><p>{{ rule.message }}</p></div><div class="ds-guard-state">{% with chip=rule.chip %}{% include 'partials/chip.html' %}{% endwith %}</div></article>{% endfor %}</div>{% else %}{% with empty=page.guardrails_empty %}{% include 'partials/empty_state.html' %}{% endwith %}{% endif %}
+      </div>
+
+      <div class="ds-tab-panel" x-show="tab === 'trace'" x-cloak>
+        <dl class="ds-trace-meta"><div><dt>Провайдер</dt><dd>{{ page.trace.provider }}</dd></div><div><dt>Модель</dt><dd>{{ page.trace.model }}</dd></div><div><dt>Версия промта</dt><dd>{{ page.trace.prompt_version }}</dd></div><div><dt>Токены</dt><dd>{{ page.trace.tokens_text }}</dd></div><div><dt>Стоимость</dt><dd>{{ page.trace.cost_text }}</dd></div><div><dt>Кеш</dt><dd>{% with chip=page.trace.cache_chip %}{% include 'partials/chip.html' %}{% endwith %}</dd></div></dl>
+        <section class="ds-trace-steps"><header>Шаги обработки <span>{{ page.total_duration_text }}</span></header>{% with rows=page.waterfall %}{% include 'partials/waterfall.html' %}{% endwith %}</section>
+      </div>
+
+      <div class="ds-tab-panel" x-show="tab === 'json'" x-cloak><div class="ds-json-head"><span>Strict structured output</span><button type="button" class="ds-button" onclick="DocSift.copy('raw-json',this)">Копировать</button></div><pre id="raw-json">{{ page.raw_json }}</pre></div>
+    </section>
+  </div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{# Серверная пагинация; ссылки работают и без JS, HTMX подхватывает их для частичного обновления #}
+<nav class="flex items-center justify-between gap-3 mt-4" aria-label="Пагинация">
+  <p class="text-sm num" style="color: var(--ds-muted)">{{ pagination.range_text }}</p>
+  <div class="flex items-center gap-1">
+    <a
+      class="icon-btn{% if not pagination.has_prev %} opacity-40 pointer-events-none{% endif %}"
+      aria-label="Предыдущая страница"
+      href="?{{ base_query }}{% if base_query %}&{% endif %}page={{ pagination.page - 1 }}"
+      hx-get="?{{ base_query }}{% if base_query %}&{% endif %}page={{ pagination.page - 1 }}"
+      hx-target="{{ target|default('#table-region') }}"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+    ><i data-lucide="chevron-left" class="w-4 h-4" aria-hidden="true"></i></a>
+    {% for number in pagination.numbers %}
+      <a
+        class="icon-btn num{% if number == pagination.page %} chip-accent{% endif %}"
+        aria-label="Страница {{ number }}"
+        {% if number == pagination.page %}aria-current="page"{% endif %}
+        href="?{{ base_query }}{% if base_query %}&{% endif %}page={{ number }}"
+        hx-get="?{{ base_query }}{% if base_query %}&{% endif %}page={{ number }}"
+        hx-target="{{ target|default('#table-region') }}"
+        hx-swap="outerHTML"
+        hx-push-url="true"
+      >{{ number }}</a>
+    {% endfor %}
+    <a
+      class="icon-btn{% if not pagination.has_next %} opacity-40 pointer-events-none{% endif %}"
+      aria-label="Следующая страница"
+      href="?{{ base_query }}{% if base_query %}&{% endif %}page={{ pagination.page + 1 }}"
+      hx-get="?{{ base_query }}{% if base_query %}&{% endif %}page={{ pagination.page + 1 }}"
+      hx-target="{{ target|default('#table-region') }}"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+    ><i data-lucide="chevron-right" class="w-4 h-4" aria-hidden="true"></i></a>
+  </div>
+</nav>

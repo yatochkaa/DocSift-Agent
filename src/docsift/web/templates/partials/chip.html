@@ -1,0 +1,2 @@
+{# Универсальный чип. Ожидает объект Chip(label, tone, title). #}
+<span class="chip chip-{{ chip.tone }}"{% if chip.title %} title="{{ chip.title }}"{% endif %}>{{ chip.label }}</span>

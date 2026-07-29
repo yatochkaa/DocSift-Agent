@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title|default('DocSift') }} — DocSift</title>
+  <script>(function(){var t=localStorage.getItem('docsift-theme');if(t)document.documentElement.dataset.theme=t})();</script>
+  {% include '_assets.html' %}
+  {% set theme_name = request.query_params.get('theme') or web_theme %}
+  {% if theme_name not in web_themes %}{% set theme_name = 'default' %}{% endif %}
+  <link rel="stylesheet" href="{{ url_for('web-static', path='themes/' ~ theme_name ~ '.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('web-static', path='/paper-machine.css') }}?v=20260729-2" />
+  <script src="{{ url_for('web-static', path='/paper-machine.js') }}?v=20260729-2" defer></script>
+</head>
+<body class="ds-app">
+  <div class="grain" aria-hidden="true"></div>
+  <a href="#main" class="sr-only">Перейти к содержимому</a>
+  {% include 'partials/sidebar.html' %}
+  <div class="ds-shell">
+    <header class="ds-topbar">
+      <a class="ds-wordmark" href="/">Doc<span>Sift</span></a>
+      <p>Document intelligence · локально и приватно</p>
+      <div class="ds-top-actions">
+        <button class="ds-icon-button" id="theme-toggle-btn" type="button" aria-label="Переключить светлую или тёмную тему" title="Светлая / тёмная тема"><i data-lucide="sun" class="theme-icon-sun" aria-hidden="true"></i><i data-lucide="moon" class="theme-icon-moon" aria-hidden="true"></i></button>
+      </div>
+    </header>
+    <main id="main" class="ds-main">
+      {% block page_header %}
+      <header class="ds-page-head">
+        <div>
+          <p class="ds-kicker">DocSift / {{ title }}</p>
+          <h1>{{ title }}</h1>
+          {% block subtitle %}{% endblock %}
+        </div>
+        <div class="ds-page-actions">{% block actions %}{% endblock %}</div>
+      </header>
+      {% endblock %}
+      <div class="{% block content_class %}ds-page{% endblock %}">{% block content %}{% endblock %}</div>
+    </main>
+  </div>
+  {% block after_content %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,26 @@
+{# KPI-карточка: значение, дельта со стрелкой, микро-спарклайн (SVG, без JS) #}
+<article class="card card-raised enter">
+  <div class="flex items-start justify-between gap-3">
+    <p class="card-title">{{ kpi.title }}</p>
+    <span style="color: var(--ds-muted)" aria-hidden="true"><i data-lucide="{{ kpi.icon }}" class="w-4 h-4"></i></span>
+  </div>
+  <p class="kpi-value mt-3">{{ kpi.value }}</p>
+  <div class="flex items-end justify-between gap-3 mt-2">
+    <p class="text-sm flex items-center gap-1.5">
+      <span class="chip chip-{{ kpi.delta.tone }}">{{ kpi.delta.arrow }} {{ kpi.delta.text }}</span>
+      <span style="color: var(--ds-muted)">{{ kpi.hint }}</span>
+    </p>
+    {% if kpi.sparkline.path %}
+      <svg
+        width="{{ kpi.sparkline.width }}"
+        height="{{ kpi.sparkline.height }}"
+        viewBox="0 0 {{ kpi.sparkline.width }} {{ kpi.sparkline.height }}"
+        class="shrink-0"
+        role="img"
+        aria-label="Динамика показателя"
+      >
+        <path d="{{ kpi.sparkline.path }}" fill="none" stroke="var(--ds-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    {% endif %}
+  </div>
+</article>

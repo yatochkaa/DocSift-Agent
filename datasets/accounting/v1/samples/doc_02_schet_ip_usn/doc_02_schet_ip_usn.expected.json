@@ -1,0 +1,38 @@
+{
+  "document_type": "payment_invoice",
+  "number": "СЧ-7/2026",
+  "date": "2026-01-09",
+  "supplier": {
+    "name": "Индивидуальный предприниматель Петров Сергей Анатольевич",
+    "inn": "772345678901",
+    "kpp": null
+  },
+  "buyer": {
+    "name": "Общество с ограниченной ответственностью \"Диджитал Вэй\"",
+    "inn": "5406789123",
+    "kpp": "540601001"
+  },
+  "total_amount": "72500.0",
+  "vat_amount": null,
+  "currency": "RUB",
+  "line_items": [
+    {
+      "name": "Разработка макета лендинг-страницы",
+      "quantity": "1",
+      "unit": "усл",
+      "unit_price": "45000.0",
+      "amount": "45000.0",
+      "vat_rate": null,
+      "vat_amount": null
+    },
+    {
+      "name": "Авторское сопровождение, час",
+      "quantity": "12.5",
+      "unit": "час",
+      "unit_price": "2200.0",
+      "amount": "27500.0",
+      "vat_rate": null,
+      "vat_amount": null
+    }
+  ]
+}

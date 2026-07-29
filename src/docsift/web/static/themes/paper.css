@@ -1,0 +1,46 @@
+/* Тема "paper" — только оформление. Разметку не трогаем.
+   Подключается последней, поэтому переопределяет базовые правила.
+   Проверка: http://127.0.0.1:8000/documents?theme=paper */
+
+:root {
+  --ds-paper-bg: #f4f1ea;
+  --ds-paper-ink: #1f1c17;
+  --ds-paper-line: #d9d2c4;
+  --ds-paper-accent: #8a5a2b;
+}
+
+html[data-theme="light"] body,
+html:not([data-theme="dark"]) body {
+  background-color: var(--ds-paper-bg);
+  color: var(--ds-paper-ink);
+}
+
+body {
+  font-feature-settings: "liga" 1, "calt" 1;
+  letter-spacing: 0.01em;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+table th,
+table td {
+  border-bottom: 1px solid var(--ds-paper-line);
+}
+
+a {
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  color: var(--ds-paper-accent);
+}
+
+/* Дальше дописывает дизайнер. Правило одно: только этот файл,
+   ни одного .html и ни одного нового класса в шаблонах. */

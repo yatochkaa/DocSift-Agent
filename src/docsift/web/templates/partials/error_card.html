@@ -1,0 +1,13 @@
+{# Карточка ошибки с кнопкой «повторить» #}
+<div class="card card-raised enter" role="alert" style="border-color: color-mix(in srgb, var(--ds-danger) 40%, transparent)">
+  <div class="flex items-start gap-3">
+    <span style="color: var(--ds-danger)" aria-hidden="true"><i data-lucide="alert-triangle" class="w-5 h-5"></i></span>
+    <div class="min-w-0">
+      <p class="font-semibold mb-1">Не удалось загрузить данные</p>
+      <p class="text-sm mono break-words" style="color: var(--ds-muted)">{{ error_text|default('Неизвестная ошибка') }}</p>
+    </div>
+  </div>
+  <div class="mt-4">
+    <button type="button" class="btn" onclick="location.reload()">Повторить</button>
+  </div>
+</div>

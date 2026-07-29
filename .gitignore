@@ -1,0 +1,32 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Environments and secrets
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Tests and linters
+.pytest_cache/
+.pytest-tmp*/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Runtime
+var/
+*.log
+*.tmp
+*.bak
+
+# Local backups
+.ui-backup/
+*.patch
+
+# Root-level generated exports
+/docsift_*.xlsx

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title|default('DocSift') }} — DocSift</title>
+    <script>
+      /* Тема выбирается до первой отрисовки, чтобы не было вспышки светлого фона. */
+      (function () {
+        var saved = localStorage.getItem('docsift-theme');
+        if (saved) document.documentElement.dataset.theme = saved;
+      })();
+    </script>
+    {% include '_assets.html' %}
+    {% set theme_name = request.query_params.get('theme') or web_theme %}
+    {% if theme_name not in web_themes %}{% set theme_name = 'default' %}{% endif %}
+    <link rel="stylesheet" href="{{ url_for('web-static', path='themes/' ~ theme_name ~ '.css') }}" />
+  </head>
+  <body class="min-h-screen">
+    <div class="grain" aria-hidden="true"></div>
+    <a href="#main" class="sr-only">Перейти к содержимому</a>
+    <div class="md:flex">
+      {% include 'partials/sidebar.html' %}
+
+      <main id="main" class="flex-1 min-w-0 px-4 md:px-8 pb-24 md:pb-10 pt-5">
+        <header class="flex items-center justify-between gap-4 mb-6">
+          <div class="min-w-0">
+            <h1 class="text-xl md:text-2xl font-semibold tracking-tight truncate"
+                style="font-family: var(--ds-serif)">{{ title }}</h1>
+            {% block subtitle %}{% endblock %}
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {% block actions %}{% endblock %}
+            <button
+              type="button"
+              class="icon-btn"
+              id="theme-toggle-btn"
+              aria-label="Переключить тему"
+              title="Переключить тему"
+              onclick="DocSift.toggleTheme()"
+            >
+              <i data-lucide="sun" class="theme-icon-sun w-4 h-4" aria-hidden="true"></i>
+              <i data-lucide="moon" class="theme-icon-moon w-4 h-4" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+
+    {% include 'partials/bottom_nav.html' %}
+  </body>
+</html>

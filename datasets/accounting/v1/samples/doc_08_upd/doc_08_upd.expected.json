@@ -1,0 +1,47 @@
+{
+  "document_type": "universal_transfer_document",
+  "number": "305",
+  "date": "2025-09-20",
+  "supplier": {
+    "name": "Общество с ограниченной ответственностью \"ГорПродукт\"",
+    "inn": "6165187432",
+    "kpp": "616501001"
+  },
+  "buyer": {
+    "name": "Общество с ограниченной ответственностью \"АгроЛайн\"",
+    "inn": "3663098745",
+    "kpp": "366301001"
+  },
+  "total_amount": "234920.0",
+  "vat_amount": "39153.33",
+  "currency": "RUB",
+  "line_items": [
+    {
+      "name": "Кофе зерновой Arabica 100%, 1 кг",
+      "quantity": "120",
+      "unit": "шт",
+      "unit_price": "1290.0",
+      "amount": "154800.0",
+      "vat_rate": "20",
+      "vat_amount": "25800.0"
+    },
+    {
+      "name": "Сироп ванильный, 1 л",
+      "quantity": "48",
+      "unit": "шт",
+      "unit_price": "690.0",
+      "amount": "33120.0",
+      "vat_rate": "20",
+      "vat_amount": "5520.0"
+    },
+    {
+      "name": "Стаканы бумажные 350 мл, уп. 50 шт.",
+      "quantity": "200",
+      "unit": "упак",
+      "unit_price": "235.0",
+      "amount": "47000.0",
+      "vat_rate": "20",
+      "vat_amount": "7833.33"
+    }
+  ]
+}

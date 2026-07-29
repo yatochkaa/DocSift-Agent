@@ -1,0 +1,56 @@
+{
+  "document_type": "consignment_note_torg12",
+  "number": "1024",
+  "date": "2025-04-15",
+  "supplier": {
+    "name": "Акционерное общество \"СеверТрейд\"",
+    "inn": "7801456123",
+    "kpp": "780101001"
+  },
+  "buyer": {
+    "name": "Общество с ограниченной ответственностью \"СтройМир Групп\"",
+    "inn": "1656098234",
+    "kpp": "165601001"
+  },
+  "total_amount": "177420.0",
+  "vat_amount": "29570.0",
+  "currency": "RUB",
+  "line_items": [
+    {
+      "name": "Кабель ВВГнг(A)-LS 3х2,5",
+      "quantity": "850",
+      "unit": "м",
+      "unit_price": "96.4",
+      "amount": "98328.0",
+      "vat_rate": "20",
+      "vat_amount": "16388.0"
+    },
+    {
+      "name": "Автоматический выключатель IEK ВА4716 C16",
+      "quantity": "120",
+      "unit": "шт",
+      "unit_price": "268.0",
+      "amount": "38592.0",
+      "vat_rate": "20",
+      "vat_amount": "6432.0"
+    },
+    {
+      "name": "Щит распределительный ЩРН-24",
+      "quantity": "8",
+      "unit": "шт",
+      "unit_price": "3420.0",
+      "amount": "32832.0",
+      "vat_rate": "20",
+      "vat_amount": "5472.0"
+    },
+    {
+      "name": "Гофра ПВХ д 25 мм с зондом",
+      "quantity": "300",
+      "unit": "м",
+      "unit_price": "21.3",
+      "amount": "7668.0",
+      "vat_rate": "20",
+      "vat_amount": "1278.0"
+    }
+  ]
+}

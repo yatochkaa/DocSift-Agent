@@ -1,0 +1,38 @@
+{
+  "document_type": "work_completion_act",
+  "number": "12",
+  "date": "2026-06-30",
+  "supplier": {
+    "name": "Индивидуальный предприниматель Петров Сергей Анатольевич",
+    "inn": "772345678901",
+    "kpp": null
+  },
+  "buyer": {
+    "name": "Общество с ограниченной ответственностью \"МедЛаб Центр\"",
+    "inn": "6671123456",
+    "kpp": "667101001"
+  },
+  "total_amount": "47000.0",
+  "vat_amount": null,
+  "currency": "RUB",
+  "line_items": [
+    {
+      "name": "Техническая поддержка сайта (абонентская плата)",
+      "quantity": "1",
+      "unit": "мес",
+      "unit_price": "28000.0",
+      "amount": "28000.0",
+      "vat_rate": null,
+      "vat_amount": null
+    },
+    {
+      "name": "Настройка рекламных кампаний",
+      "quantity": "2",
+      "unit": "усл",
+      "unit_price": "9500.0",
+      "amount": "19000.0",
+      "vat_rate": null,
+      "vat_amount": null
+    }
+  ]
+}

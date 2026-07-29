@@ -1,0 +1,27 @@
+{% extends 'base_paper.html' %}
+{% block page_header %}<header class="ds-page-head ds-eval-report-head"><div><p class="ds-kicker"><a href="/evals">Прогоны</a> / Отчёт</p><h1>Результат прогона</h1><p class="ds-run-id">{{ page.run_id }}</p></div><a class="ds-button" href="/evals">← К истории прогонов</a></header>{% endblock %}
+{% block content %}
+<section class="ds-eval-verdict"><div><p class="ds-kicker">Краткий вывод</p><h2>{{ page.verdict }}</h2></div><a class="ds-button is-primary" href="#weak-fields">Посмотреть слабые поля</a></section>
+
+<section class="ds-eval-summary">
+  <article><small>Средняя точность</small><strong>{{ page.accuracy_text }}</strong><span>по всем полям</span></article>
+  <article><small>Документов</small><strong>{{ page.documents_text }}</strong><span>в этом прогоне</span></article>
+  <article><small>Общее время</small><strong>{{ page.duration_text }}</strong><span>полный запуск</span></article>
+  <article><small>Стоимость</small><strong>{{ page.cost_text }}</strong><span>по тарифу провайдера</span></article>
+</section>
+
+<section id="weak-fields" class="ds-eval-section">
+  <header><div><p class="ds-kicker">Куда смотреть сначала</p><h2>Поля с минимальным F1</h2><p>Чем ниже F1, тем чаще поле пропускается или извлекается неверно.</p></div></header>
+  {% if page.attention_metrics %}<div class="ds-weak-list">{% for row in page.attention_metrics %}<article><span>{{ loop.index }}</span><strong>{{ row.field_name }}</strong><dl><div><dt>Точность</dt><dd>{{ row.precision.text }}</dd></div><div><dt>Полнота</dt><dd>{{ row.recall.text }}</dd></div><div><dt>F1</dt><dd class="is-{{ row.f1.tone }}">{{ row.f1.text }}</dd></div></dl></article>{% endfor %}</div>{% else %}{% with empty=page.metrics_empty %}{% include 'partials/empty_state.html' %}{% endwith %}{% endif %}
+</section>
+
+<section class="ds-eval-section"><header><div><p class="ds-kicker">Производительность</p><h2>Тайминги по шагам</h2><p>Показывает, где запуск тратит основное время.</p></div></header>{% with rows=page.waterfall %}{% include 'partials/waterfall.html' %}{% endwith %}</section>
+
+<section class="ds-eval-section"><header><div><p class="ds-kicker">Состав запуска</p><h2>Документы прогона</h2><p>Откройте конкретный документ, чтобы проверить извлечённые поля.</p></div></header>{% if page.samples %}<div class="ds-eval-docs">{% for sample in page.samples %}<a href="{{ sample.href }}/review"><span><strong>{{ sample.file_name }}</strong><small>{{ sample.duration_text }}</small></span>{% with chip=sample.status_chip %}{% include 'partials/chip.html' %}{% endwith %}<b>{{ sample.accuracy_text }}</b><i data-lucide="arrow-right"></i></a>{% endfor %}</div>{% else %}<div class="ds-home-empty"><p>В прогоне нет документов.</p></div>{% endif %}</section>
+
+<details class="ds-eval-section ds-all-metrics"><summary>Все метрики по полям <span>{{ page.metrics|length }}</span></summary>{% if page.metrics %}<div class="overflow-x-auto"><table class="table"><thead><tr><th>Поле</th><th class="right">Точность</th><th class="right">Полнота</th><th class="right">F1</th></tr></thead><tbody>{% for row in page.metrics %}<tr><td data-label="Поле">{{ row.field_name }}</td><td data-label="Точность" class="right num" style="{{ row.precision.style }}">{{ row.precision.text }}</td><td data-label="Полнота" class="right num" style="{{ row.recall.style }}">{{ row.recall.text }}</td><td data-label="F1" class="right num" style="{{ row.f1.style }}">{{ row.f1.text }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}</details>
+
+<details class="ds-eval-section ds-run-params"><summary>Технические параметры прогона</summary><dl>{% for label,value in page.header %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl></details>
+
+{% if page.errors %}<section class="ds-eval-section is-error"><header><div><p class="ds-kicker">Ошибки</p><h2>Проблемы во время прогона</h2></div></header><ul>{% for error in page.errors %}<li class="mono">{{ error }}</li>{% endfor %}</ul></section>{% endif %}
+{% endblock %}

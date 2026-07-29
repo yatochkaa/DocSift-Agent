@@ -1,0 +1,13 @@
+{# Нижняя панель для экранов уже 768px #}
+<nav
+  class="md:hidden fixed bottom-0 inset-x-0 border-t flex"
+  style="background: var(--ds-surface)"
+  aria-label="Нижнее меню"
+>
+  {% set items = [('/', 'layout-dashboard', 'Дашборд'), ('/documents', 'files', 'Документы'), ('/evals', 'flask-conical', 'Прогоны')] %}
+  {% for href, icon, label in items %}
+    <a href="{{ href }}" class="flex-1 flex flex-col items-center justify-center gap-1 py-2 text-xs" style="color: var(--ds-muted); min-height: 56px">
+      <i data-lucide="{{ icon }}" class="w-5 h-5" aria-hidden="true"></i>{{ label }}
+    </a>
+  {% endfor %}
+</nav>

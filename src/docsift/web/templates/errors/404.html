@@ -1,0 +1,9 @@
+{% extends 'base_paper.html' %}
+
+{% block content %}
+  <div class="card card-raised">
+    {% with empty = {'icon': 'compass', 'text': 'Страница не найдена', 'action_label': 'На дашборд', 'action_href': '/'} %}
+      {% include 'partials/empty_state.html' %}
+    {% endwith %}
+  </div>
+{% endblock %}

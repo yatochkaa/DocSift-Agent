@@ -1,0 +1,18 @@
+{# Waterfall таймингов по шагам. Нулевые длительности дают пустые полосы #}
+{% if rows %}
+  <ul class="flex flex-col gap-3">
+    {% for row in rows %}
+      <li class="grid grid-cols-[minmax(120px,180px)_1fr_auto] items-center gap-3">
+        <span class="text-sm truncate" style="color: var(--ds-muted)">{{ row.label }}</span>
+        <span class="wf-track" role="img" aria-label="{{ row.label }}: {{ row.duration_text }} ({{ row.share_text }})">
+          <span class="wf-bar" style="left: {{ row.offset_percent }}%; width: {{ row.width_percent }}%; background: {{ row.color }}"></span>
+        </span>
+        <span class="text-sm num tabular-nums whitespace-nowrap">{{ row.duration_text }} <span style="color: var(--ds-muted)">/ {{ row.share_text }}</span></span>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  {% with empty = {'icon': 'timer-off', 'text': 'Тайминги не записаны', 'action_label': none, 'action_href': none} %}
+    {% include 'partials/empty_state.html' %}
+  {% endwith %}
+{% endif %}

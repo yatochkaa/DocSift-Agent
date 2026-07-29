@@ -1,0 +1,17 @@
+{# Чип статуса. Вызывается двумя путями: роут поллинга передаёт готовый
+   объект chip, строка загрузки — строковый ключ status. Поддерживаем оба,
+   иначе поллинг рисует прочерк вместо реального статуса.
+
+   Для статусов, которых нет в tokens.STATUS_LABELS (uploaded, extracted,
+   review_required), status_label возвращает сам ключ — только такие
+   приводим к читаемому виду. Своего словаря подписей не заводим. #}
+{% set _key = chip.title if (chip is defined and chip) else status %}
+{% set _label = chip.label if (chip is defined and chip) else status_label(status) %}
+{% set _tone = chip.tone if (chip is defined and chip) else status_tone(status) %}
+<span class="chip chip-{{ _tone }}"{% if _key %} title="{{ _key }}"{% endif %}>
+  {%- if _key and _label == _key -%}
+    {{ _key.replace('_', ' ')|capitalize }}
+  {%- else -%}
+    {{ _label }}
+  {%- endif -%}
+</span>

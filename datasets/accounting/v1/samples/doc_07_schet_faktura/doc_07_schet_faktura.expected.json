@@ -1,0 +1,38 @@
+{
+  "document_type": "vat_invoice",
+  "number": "411",
+  "date": "2025-11-05",
+  "supplier": {
+    "name": "Общество с ограниченной ответственностью \"Ромашка\"",
+    "inn": "7714236789",
+    "kpp": "771401001"
+  },
+  "buyer": {
+    "name": "Акционерное общество \"СеверТрейд\"",
+    "inn": "7801456123",
+    "kpp": "780101001"
+  },
+  "total_amount": "582300.0",
+  "vat_amount": "97050.0",
+  "currency": "RUB",
+  "line_items": [
+    {
+      "name": "Монитор 27\" IPS 2560х1440",
+      "quantity": "15",
+      "unit": "шт",
+      "unit_price": "24900.0",
+      "amount": "448200.0",
+      "vat_rate": "20",
+      "vat_amount": "74700.0"
+    },
+    {
+      "name": "Док-станция USB-C 11-in-1",
+      "quantity": "15",
+      "unit": "шт",
+      "unit_price": "7450.0",
+      "amount": "134100.0",
+      "vat_rate": "20",
+      "vat_amount": "22350.0"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{# Пустое состояние: иконка + одна фраза + кнопка действия #}
+<div class="flex flex-col items-center justify-center text-center gap-3 py-14 enter" data-empty-state>
+  <span
+    class="inline-flex w-11 h-11 items-center justify-center rounded-xl border"
+    style="color: var(--ds-muted); background: var(--ds-raised)"
+    aria-hidden="true"
+  >
+    <i data-lucide="{{ empty.icon }}" class="w-5 h-5"></i>
+  </span>
+  <p class="text-sm" style="color: var(--ds-muted)">{{ empty.text }}</p>
+  {% if empty.action_href %}
+    {% if empty.action_href == '#review' %}
+      {# For processing status, refresh current page to check again #}
+      <button class="btn btn-primary" onclick="window.location.reload();">{{ empty.action_label }}</button>
+    {% else %}
+      <a
+        class="btn btn-primary"
+        href="{{ empty.action_href }}"
+        {% if empty.action_href == '#upload' %}onclick="DocSift.openUpload(); return false;"{% endif %}
+      >{{ empty.action_label }}</a>
+    {% endif %}
+  {% endif %}
+</div>

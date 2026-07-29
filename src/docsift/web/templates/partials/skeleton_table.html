@@ -1,0 +1,6 @@
+{# Состояние загрузки: skeleton-блоки вместо спиннера. #}
+<div class="flex flex-col gap-2" aria-hidden="true" data-skeleton>
+  {% for _ in range(rows|default(6)) %}
+    <div class="skeleton" style="height: var(--ds-row-h)"></div>
+  {% endfor %}
+</div>
