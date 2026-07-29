@@ -265,3 +265,56 @@ def test_service_defaults_match_settings_defaults() -> None:
 
     assert service._pdf._max_pages == defaults.pdf_max_pages  # type: ignore[attr-defined]
     assert service._pdf._max_render_megapixels == defaults.pdf_max_render_megapixels  # type: ignore[attr-defined]
+    assert (
+        service._image._max_megapixels
+        == Settings.model_fields["image_max_megapixels"].default
+    )
+
+
+# ── Image pixel-limit tests ────────────────────────────────────────────
+
+
+def test_image_within_pixel_limit_is_processed(tmp_path: Path) -> None:
+    """A 800×600 (0.48 MP) image with max_megapixels=1 is accepted."""
+    from docsift.services.text_extraction.extractors import ImageTextExtractor
+
+    image = Image.new("RGB", (800, 600), "white")
+    image.save(tmp_path / "small.png")
+
+    extractor = ImageTextExtractor(
+        ocr_engine=StubOcrEngineEmpty(),
+        preprocessor=RecordingPreprocessor(),  # type: ignore[arg-type]
+        max_megapixels=1,
+    )
+
+    pages = extractor.extract(tmp_path / "small.png")
+
+    assert len(pages) == 1
+    assert pages[0].used_ocr is True
+
+
+def test_image_exceeding_pixel_limit_is_rejected(tmp_path: Path) -> None:
+    """A 1200×1200 (1.44 MP) image with max_megapixels=1 raises before processing."""
+    from docsift.services.text_extraction.extractors import ImageTextExtractor
+
+    image = Image.new("RGB", (1200, 1200), "white")
+    image.save(tmp_path / "big.png")
+
+    preprocessor = RecordingPreprocessor()
+    extractor = ImageTextExtractor(
+        ocr_engine=StubOcrEngineEmpty(),
+        preprocessor=preprocessor,  # type: ignore[arg-type]
+        max_megapixels=1,
+    )
+
+    with pytest.raises(ValueError, match="превышает лимит 1 МП"):
+        extractor.extract(tmp_path / "big.png")
+
+    assert preprocessor.last_size is None
+
+
+def test_service_passes_image_limit_to_extractor() -> None:
+    """TextExtractionService forwards image_max_megapixels to ImageTextExtractor."""
+    service = TextExtractionService(image_max_megapixels=13)
+
+    assert service._image._max_megapixels == 13  # type: ignore[attr-defined]

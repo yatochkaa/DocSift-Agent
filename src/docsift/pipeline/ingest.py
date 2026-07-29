@@ -366,6 +366,7 @@ async def _run_with_session(
         text_service = TextExtractionService(
             pdf_max_pages=settings.pdf_max_pages,
             pdf_max_render_megapixels=settings.pdf_max_render_megapixels,
+            image_max_megapixels=settings.image_max_megapixels,
         )
     else:
         text_service = text_extraction_service

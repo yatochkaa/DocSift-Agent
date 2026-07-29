@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     eval_cloud_output_price_per_million: Decimal = Field(default=Decimal(0), ge=0)
     pdf_max_pages: int = Field(default=200, gt=0)
     pdf_max_render_megapixels: int = Field(default=40, gt=0)
+    image_max_megapixels: int = Field(default=50, gt=0)
     guardrail_confidence_threshold: float = Field(default=0.80, ge=0, le=1)
     guardrail_document_max_age_days: int = Field(default=3650, ge=1)
     guardrail_document_future_tolerance_days: int = Field(default=1, ge=0)

@@ -198,12 +198,22 @@ class ImageTextExtractor:
         self,
         ocr_engine: OcrEngineProtocol,
         preprocessor: ImagePreprocessor,
+        *,
+        max_megapixels: int = 50,
     ) -> None:
         self._ocr_engine = ocr_engine
         self._preprocessor = preprocessor
+        self._max_megapixels = max_megapixels
 
     def extract(self, path: Path) -> list[ExtractedPage]:
         with Image.open(path) as source:
+            width, height = source.size
+            megapixels = width * height / 1_000_000
+            if megapixels > self._max_megapixels:
+                raise ValueError(
+                    f"Изображение {width}×{height} ({megapixels:.1f} МП) превышает "
+                    f"лимит {self._max_megapixels} МП"
+                )
             prepared = self._preprocessor.prepare(source)
         blocks, tables = self._ocr_engine.extract(prepared)
         return [
