@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -21,6 +22,8 @@ from docsift.services.llm.service import (
 
 if TYPE_CHECKING:
     from docsift.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 def _build_field_map(document: ExtractedDocument) -> dict[str, ExtractedField[Any]]:
@@ -230,6 +233,17 @@ class CascadeExtractionService:
             LLMRequest(messages=tuple(messages), json_schema={})
         )
         corrections = self._parse_corrections(response.content)
+        allowed = set(disputed_paths)
+        dropped = sorted(set(corrections) - allowed)
+        if dropped:
+            logger.warning(
+                "Каскад: отброшены правки по незапрошенным путям (%s): %s",
+                len(dropped),
+                ", ".join(dropped),
+            )
+            corrections = {
+                path: value for path, value in corrections.items() if path in allowed
+            }
         merged = self._apply_corrections(cheap_document, corrections)
         return merged, (response.input_tokens, response.output_tokens)
 

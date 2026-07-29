@@ -232,3 +232,89 @@ async def test_cascade_provenance_shows_which_model_gave_which_field() -> None:
     # buyer/name тоже от дешёвой
     assert provenance.source_of("buyer/name") == "cheap-model"
     assert "supplier/inn" in provenance.re_asked_paths
+
+
+async def test_correction_for_non_disputed_path_is_ignored() -> None:
+    """Правка по пути, которого нет в disputed_paths, отбрасывается."""
+    cheap_payload = json.dumps(_valid_payload(), ensure_ascii=False)
+    cheap_provider = FakeProvider([LLMResponse(cheap_payload, 100, 50)], model_name="cheap-model")
+
+    # Дорогая модель возвращает два ключа: оспоренный и неоспоренный
+    correction = json.dumps(
+        {
+            "supplier/inn": _field("7707083893", 0.95),
+            "number": _field("999", 0.99),
+        },
+        ensure_ascii=False,
+    )
+    expensive_provider = FakeProvider(
+        [LLMResponse(correction, 200, 60)],
+        model_name="expensive-model",
+    )
+
+    service = CascadeExtractionService(
+        cheap_provider,
+        expensive_provider,
+        FakeRepository(),
+        guardrail_evaluator=_inn_violation_guardrail,
+    )
+
+    result = await service.extract(uuid4(), _text_result())
+
+    # supplier/inn — оспоренное поле — исправлено
+    assert result.document.supplier.inn.value == "7707083893"
+    # number — неоспоренное поле — осталось прежним
+    assert result.document.number.value == "42"
+
+
+async def test_correction_for_disputed_path_is_applied() -> None:
+    """Правка по оспоренному пути применяется — фильтр не ломает основной сценарий."""
+    cheap_payload = json.dumps(_valid_payload(), ensure_ascii=False)
+    cheap_provider = FakeProvider([LLMResponse(cheap_payload, 100, 50)], model_name="cheap-model")
+    correction = json.dumps({"supplier/inn": _field("7743013902", 0.95)}, ensure_ascii=False)
+    expensive_provider = FakeProvider([LLMResponse(correction, 200, 60)], model_name="expensive-model")
+    service = CascadeExtractionService(cheap_provider, expensive_provider, FakeRepository(),
+                                       guardrail_evaluator=_inn_violation_guardrail)
+    result = await service.extract(uuid4(), _text_result())
+    assert result.used_expensive_model is True
+    assert result.document.supplier.inn.value == "7743013902"
+    assert float(result.document.supplier.inn.confidence) == 0.95
+
+
+async def test_dropped_correction_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Отброшенная правка попадает в лог как предупреждение."""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="docsift.services.llm.cascade")
+
+    cheap_payload = json.dumps(_valid_payload(), ensure_ascii=False)
+    cheap_provider = FakeProvider([LLMResponse(cheap_payload, 100, 50)], model_name="cheap-model")
+
+    # Дорогая модель возвращает только неоспоренный путь
+    correction = json.dumps(
+        {"number": _field("999", 0.99)},
+        ensure_ascii=False,
+    )
+    expensive_provider = FakeProvider(
+        [LLMResponse(correction, 200, 60)],
+        model_name="expensive-model",
+    )
+
+    service = CascadeExtractionService(
+        cheap_provider,
+        expensive_provider,
+        FakeRepository(),
+        guardrail_evaluator=_inn_violation_guardrail,
+    )
+
+    result = await service.extract(uuid4(), _text_result())
+
+    # Значение не изменилось — правка отброшена
+    assert result.document.number.value == "42"
+    # В логе есть запись об отброшенных правках
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelname == "WARNING"
+    assert "number" in record.message
