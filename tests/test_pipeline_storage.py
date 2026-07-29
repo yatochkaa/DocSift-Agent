@@ -190,3 +190,30 @@ class TestSupportedExtensions:
         result = storage.save(file_name="DOC.PDF", payload=_PDF + b"data")
         assert result.content_type == "application/pdf"
         assert result.object_key.endswith(".pdf")
+
+
+# ── TIFF signatures ────────────────────────────────────────────────────
+
+
+class TestTiffSignatures:
+    def test_little_endian_tiff_accepted(self, storage: DocumentStorage, root: Path) -> None:
+        payload = b"II*\x00" + b"\x00" * 20
+        result = storage.save(file_name="photo.tif", payload=payload)
+
+        assert result.content_type == "image/tiff"
+        assert result.absolute_path.is_file()
+        assert result.absolute_path.read_bytes() == payload
+
+    def test_big_endian_tiff_accepted(self, storage: DocumentStorage, root: Path) -> None:
+        payload = b"MM\x00*" + b"\x00" * 20
+        result = storage.save(file_name="scan.tiff", payload=payload)
+
+        assert result.content_type == "image/tiff"
+        assert result.absolute_path.is_file()
+        assert result.absolute_path.read_bytes() == payload
+
+    def test_tiff_without_signature_rejected(self, storage: DocumentStorage, root: Path) -> None:
+        with pytest.raises(UnsupportedContentTypeError, match="не соответствует ни одному"):
+            storage.save(file_name="bad.tiff", payload=b"NOTATIFF" + b"\x00" * 20)
+
+        assert len(list(root.rglob("*.tif*"))) == 0
